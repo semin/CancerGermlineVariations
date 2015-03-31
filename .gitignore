@@ -1,0 +1,8 @@
+*.RData
+*.lsfout
+*.txt
+*.swp
+*.Rhistory
+*.discarded
+*.backup
+*.old
