@@ -39,55 +39,55 @@ for (vcfFile in vcfFiles) {
                       elementLengths(info(vcf)$microsat) == 0]
     vcfFileterdFile = gsub("eur_af", "eur_af.biallelic.nodups", vcfFile, fixed = T)
     vcfFileterdFile = gsub(".gz", "", vcfFileterdFile, fixed = T)
-    #cat(sprintf("Writing %s ...\n", vcfFileterdFile))
-    #writeVcf(vcfFiltered, vcfFileterdFile, index = T)
+    cat(sprintf("Writing %s ...\n", vcfFileterdFile))
+    writeVcf(vcfFiltered, vcfFileterdFile, index = T)
 
-    # Rare
-    rareVcf = vcfFiltered[unlist(!is.na(info(vcfFiltered)$TG_ALL_AF) &
-                                 info(vcfFiltered)$TG_ALL_AF < 0.01 &
-                                 info(vcfFiltered)$TG_EAS_AF < 0.01 &
-                                 info(vcfFiltered)$TG_EUR_AF < 0.01 &
-                                 info(vcfFiltered)$TG_AFR_AF < 0.01 &
-                                 info(vcfFiltered)$TG_AMR_AF < 0.01 &
-                                 info(vcfFiltered)$TG_SAS_AF < 0.01 &
-                                 (is.na(info(vcfFiltered)$TA_AF) | info(vcfFiltered)$TA_AF < 0.01) &
-                                 (is.na(info(vcfFiltered)$EA_AF) | info(vcfFiltered)$EA_AF < 0.01) &
-                                 (is.na(info(vcfFiltered)$AA_AF) | info(vcfFiltered)$AA_AF < 0.01) &
-                                 (info(vcfFiltered)$EUR_AF >= 0.05 & info(vcfFiltered)$EUR_AF <= 0.95)
-                                 )]
+    ## Rare
+    #rareVcf = vcfFiltered[unlist(!is.na(info(vcfFiltered)$TG_ALL_AF) &
+                                 #info(vcfFiltered)$TG_ALL_AF < 0.01 &
+                                 #info(vcfFiltered)$TG_EAS_AF < 0.01 &
+                                 #info(vcfFiltered)$TG_EUR_AF < 0.01 &
+                                 #info(vcfFiltered)$TG_AFR_AF < 0.01 &
+                                 #info(vcfFiltered)$TG_AMR_AF < 0.01 &
+                                 #info(vcfFiltered)$TG_SAS_AF < 0.01 &
+                                 #(is.na(info(vcfFiltered)$TA_AF) | info(vcfFiltered)$TA_AF < 0.01) &
+                                 #(is.na(info(vcfFiltered)$EA_AF) | info(vcfFiltered)$EA_AF < 0.01) &
+                                 #(is.na(info(vcfFiltered)$AA_AF) | info(vcfFiltered)$AA_AF < 0.01) &
+                                 #(info(vcfFiltered)$EUR_AF >= 0.05 & info(vcfFiltered)$EUR_AF <= 0.95)
+                                 #)]
 
-    rareVcfFile = gsub("nodups", "nodups.rare", vcfFileterdFile, fixed = T)
-    cat(sprintf("Writing %s ...\n", rareVcfFile))
-    writeVcf(rareVcf, rareVcfFile, index = T)
+    #rareVcfFile = gsub("nodups", "nodups.rare", vcfFileterdFile, fixed = T)
+    #cat(sprintf("Writing %s ...\n", rareVcfFile))
+    #writeVcf(rareVcf, rareVcfFile, index = T)
 
-    # Novel
-    novelVcf = vcfFiltered[unlist(is.na(info(vcfFiltered)$TG_ALL_AF) &
-                                  is.na(info(vcfFiltered)$TA_AF) &
-                                  (info(vcfFiltered)$EUR_AF >= 0.05 & info(vcfFiltered)$EUR_AF <= 0.95) &
-                                  info(vcfFiltered)$DBSNP == "." &
-                                  elementLengths(info(vcfFiltered)$genomicSuperDups) == 0 &
-                                  elementLengths(info(vcfFiltered)$simpleRepeat) == 0 &
-                                  elementLengths(info(vcfFiltered)$microsat) == 0)]
+    ## Novel
+    #novelVcf = vcfFiltered[unlist(is.na(info(vcfFiltered)$TG_ALL_AF) &
+                                  #is.na(info(vcfFiltered)$TA_AF) &
+                                  #(info(vcfFiltered)$EUR_AF >= 0.05 & info(vcfFiltered)$EUR_AF <= 0.95) &
+                                  #info(vcfFiltered)$DBSNP == "." &
+                                  #elementLengths(info(vcfFiltered)$genomicSuperDups) == 0 &
+                                  #elementLengths(info(vcfFiltered)$simpleRepeat) == 0 &
+                                  #elementLengths(info(vcfFiltered)$microsat) == 0)]
 
-    novelVcfFile = gsub("nodups", "nodups.novel", vcfFileterdFile, fixed = T)
-    cat(sprintf("Writing %s ...\n", novelVcfFile))
-    writeVcf(novelVcf, novelVcfFile, index = T)
+    #novelVcfFile = gsub("nodups", "nodups.novel", vcfFileterdFile, fixed = T)
+    #cat(sprintf("Writing %s ...\n", novelVcfFile))
+    #writeVcf(novelVcf, novelVcfFile, index = T)
 
-    # Common
-    commonVcf = vcfFiltered[unlist((!is.na(info(vcfFiltered)$TG_ALL_AF) &
-                                    (info(vcfFiltered)$TG_ALL_AF >= 0.01 |
-                                     info(vcfFiltered)$TG_EAS_AF >= 0.01 |
-                                     info(vcfFiltered)$TG_EUR_AF >= 0.01 |
-                                     info(vcfFiltered)$TG_AFR_AF >= 0.01 |
-                                     info(vcfFiltered)$TG_AMR_AF >= 0.01 |
-                                     info(vcfFiltered)$TG_SAS_AF >= 0.01)) |
-                                   ((!is.na(info(vcfFiltered)$TA_AF) & info(vcfFiltered)$TA_AF >= 0.01) |
-                                    (!is.na(info(vcfFiltered)$EA_AF) & info(vcfFiltered)$EA_AF >= 0.01) |
-                                    (!is.na(info(vcfFiltered)$AA_AF) & info(vcfFiltered)$AA_AF >= 0.01))
-                                   )]
+    ## Common
+    #commonVcf = vcfFiltered[unlist((!is.na(info(vcfFiltered)$TG_ALL_AF) &
+                                    #(info(vcfFiltered)$TG_ALL_AF >= 0.01 |
+                                     #info(vcfFiltered)$TG_EAS_AF >= 0.01 |
+                                     #info(vcfFiltered)$TG_EUR_AF >= 0.01 |
+                                     #info(vcfFiltered)$TG_AFR_AF >= 0.01 |
+                                     #info(vcfFiltered)$TG_AMR_AF >= 0.01 |
+                                     #info(vcfFiltered)$TG_SAS_AF >= 0.01)) |
+                                   #((!is.na(info(vcfFiltered)$TA_AF) & info(vcfFiltered)$TA_AF >= 0.01) |
+                                    #(!is.na(info(vcfFiltered)$EA_AF) & info(vcfFiltered)$EA_AF >= 0.01) |
+                                    #(!is.na(info(vcfFiltered)$AA_AF) & info(vcfFiltered)$AA_AF >= 0.01))
+                                   #)]
 
-    commonVcfFile = gsub("nodups", "nodups.common", vcfFileterdFile, fixed = T)
-    cat(sprintf("Writing %s ...\n", commonVcfFile))
-    writeVcf(commonVcf, commonVcfFile, index = T)
+    #commonVcfFile = gsub("nodups", "nodups.common", vcfFileterdFile, fixed = T)
+    #cat(sprintf("Writing %s ...\n", commonVcfFile))
+    #writeVcf(commonVcf, commonVcfFile, index = T)
 }
 

@@ -420,7 +420,7 @@ def annotate_chr_vcfs_with_esp6500si_afs
 end
 
 def annotate_snp_chr_vcfs_with_cadd_scores
-  cadd = $baseDir + "CADD/whole_genome_SNVs.tsv.gz"
+  cadd = $baseDir + "CADD/v1.2/whole_genome_SNVs.tsv.gz"
   #canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
   #vcfs = Pathname.glob($canVcfDir + "#{canType}/snp/chrs/*/*.esp.vcf.gz").sort
   vcfs = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.esp.vcf.gz").sort
@@ -433,7 +433,7 @@ def annotate_snp_chr_vcfs_with_cadd_scores
     cmd = <<-CMD
     bsub \\
       -g /gcc/germ/cadd \\
-      -q i2b2_1d -W 12:0 \\
+      -q short -W 12:0 \\
       -o #{lsfout} \\
       "zcat #{vcf} | vcf-annotate -a #{cadd} -d key=INFO,ID=CADD_RAW,Number=A,Type=Float,Description=\\"CADD Raw Score\\" -c CHROM,POS,REF,ALT,INFO/CADD_RAW,- | bgzip -c > #{caddRawVcf} &&
       tabix -p vcf #{caddRawVcf} &&
@@ -455,19 +455,25 @@ def annotate_chr_vcfs_with_vep
   encode_dcc_dir = $baseDir + "UCSC/encodeDCC"
   ucsc_db_dir = $baseDir + "UCSC/database"
   fantom5_dir = $baseDir + "FANTOM5"
+  dbsuper_dir = $baseDir + "dbSUPER"
   #snp_vcfs = Pathname.glob($canVcfDir + "#{canType}/snp/chrs/*/*.cadd.vcf.gz").sort
   #indel_vcfs = Pathname.glob($canVcfDir + "#{canType}/indel/chrs/*/*.esp.vcf.gz").sort
   snp_vcfs = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.cadd.vcf.gz").sort
-  indel_vcfs = Pathname.glob($canVcfDir + "*/indel/chrs/*/*.esp.vcf.gz").sort
-  vcfs = [indel_vcfs, snp_vcfs].flatten
+  #indel_vcfs = Pathname.glob($canVcfDir + "*/indel/chrs/*/*.esp.vcf.gz").sort
+  #vcfs = [indel_vcfs, snp_vcfs].flatten
+  vcfs = [snp_vcfs].flatten
   Parallel.each_with_index(vcfs, :in_threads => 4) do |vcf, vi|
     vep_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".vep.vcf.gz")
     lsfout = vep_vcf.sub_ext(".gz.lsfout")
     next if lsfout.exist?
+      #-n 4 -R "span[hosts=1]" \\
+      #-q short -W 12:0 \\
     cmd = <<-CMD
     bsub \\
       -g /gcc/germ/vep \\
-      -q short -W 12:0 \\
+      -q i2b2_1d \\
+      -n 2 \\
+      -R "rusage[mem=20000] span[hosts=1]" -M 20000000 \\
       -o #{lsfout} \\
       "perl #{vep_bin} \\
         --force_overwrite \\
@@ -480,7 +486,6 @@ def annotate_chr_vcfs_with_vep
         --allele_number \\
         --no_escape \\
         --gencode_basic \\
-        --xref_refseq \\
         --vcf \\
         --assembly GRCh37 \\
         --dir #{vep_dir} \\
@@ -497,8 +502,14 @@ def annotate_chr_vcfs_with_vep
         --custom #{ucsc_db_dir}/nestedRepeats.bed.gz,nestedRepeats,bed,overlap,0 \\
         --custom #{ucsc_db_dir}/simpleRepeat.bed.gz,simpleRepeat,bed,overlap,0 \\
         --custom #{ucsc_db_dir}/microsat.bed.gz,microsat,bed,overlap,0 \\
-        --custom #{encode_dcc_dir}/wgEncodeAwgDnaseMasterSites.bed.gz,wgEncodeAwgDnaseMasterSites,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeRegDnaseClusteredV3.bed.gz,wgEncodeRegDnaseClusteredV3,bed,overlap,0 \\
+        --custom #{encode_dcc_dir}/wgEncodeAwgDnaseMasterSites.bed.gz,wgEncodeAwgDnaseMasterSites,bed,overlap,0 \\
+        --custom #{encode_dcc_dir}/distalDhsToPromoterDhs.bed.gz,distalDhsToPromoterDhs,bed,overlap,0 \\
+        --custom #{encode_dcc_dir}/dhsToGeneExpression.bed.gz,dhsToGeneExpression,bed,overlap,0 \\
+        --custom #{fantom5_dir}/fantom5PermissiveEnhancers.bed.gz,fantom5PermissiveEnhancers,bed,overlap,0 \\
+        --custom #{fantom5_dir}/fantom5EnhancerTssAssociations.bed.gz,fantom5EnhancerTssAssociations,bed,overlap,0 \\
+        --custom #{dbsuper_dir}/all/allDbSuperEnhancers.bed.gz,allDbSuperEnhancers,bed,overlap,0 \\
+        --custom #{dbsuper_dir}/all/allDbSuperEnhancerGeneAssociations.bed.gz,allDbSuperEnhancerGeneAssociations,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeRegTfbsClusteredWithCellsV3.bed.gz,wgEncodeRegTfbsClusteredWithCellsV3,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedGm12878.bed.gz,wgEncodeAwgSegmentationCombinedGm12878,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedH1hesc.bed.gz,wgEncodeAwgSegmentationChromhmmH1hesc,bed,overlap,0 \\
@@ -506,21 +517,15 @@ def annotate_chr_vcfs_with_vep
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedHepg2.bed.gz,wgEncodeAwgSegmentationCombinedHepg2,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedHuvec.bed.gz,wgEncodeAwgSegmentationCombinedHuvec,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedK562.bed.gz,wgEncodeAwgSegmentationCombinedK562,bed,overlap,0 \\
-        --custom #{encode_dcc_dir}/distalDhsToPromoterDhs.bed.gz,distalDhsToPromoterDhs,bed,overlap,0 \\
-        --custom #{encode_dcc_dir}/dhsToGeneExpression.bed.gz,dhsToGeneExpression,bed,overlap,0 \\
-        --custom #{fantom5_dir}/fantom5PermissiveEnhancers.bed.gz,fantom5PermissiveEnhancers,bed,overlap,0 \\
-        --custom #{fantom5_dir}/fantom5EnhancerTssAssociations.bed.gz,fantom5EnhancerTssAssociations,bed,overlap,0 \\
         --input_file #{vcf} \\
         --output_file STDOUT | bgzip -c > #{vep_vcf} && tabix -p vcf #{vep_vcf}"
     CMD
-    puts cmd
+    submit cmd
   end
 end
 
 def extract_eur_chr_vcfs
   canTypes = %w[BLCA CESC CRC HNSC LGG LUAD PRAD SKCM STAD THCA UCEC]
-  #canTypes = %w[CRC HNSC LUAD PRAD SKCM STAD THCA UCEC]
-  #canTypes = %w[CESC LGG]
   canTypes.each do |canType|
     eurPopFile = $canVcfDir + canType + "EUR_Samples.txt"
     eurPopFile.open('w') do |file|
@@ -538,6 +543,7 @@ def extract_eur_chr_vcfs
     vcfChrFiles.each do |vcfChrFile|
       vcfChrEurFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".eur.vcf.gz")
       lsfout = vcfChrEurFile.sub_ext(".gz.lsfout")
+      next if lsfout.exist?
       cmd = <<-CMD
         bsub \\
           -q short -W 12:0 \\
@@ -561,7 +567,7 @@ def extract_afs_from_eur_chr_vcfs
   #canType = "{CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
   #vcfChrEurFiles = Pathname.glob("#{$canVcfDir}/#{canType}/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
   vcfChrEurFiles = Pathname.glob("#{$canVcfDir}/*/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
-  Parallel.each(vcfChrEurFiles, :in_threads => 8) do |vcfChrEurFile|
+  Parallel.each(vcfChrEurFiles, :in_threads => 10) do |vcfChrEurFile|
     puts vcfChrEurFile
     vcfChrFile = Pathname.new(vcfChrEurFile.to_s.gsub("eur.", ""))
     chrEurAfFile = vcfChrEurFile.dirname + vcfChrEurFile.basename(".gz").sub_ext(".afs.txt")
@@ -1135,6 +1141,6 @@ if __FILE__ == $0
   ## Handle 1000 Genomes VCFs
 
   #split_1k_chr_vcfs_into_even_sized_chunks
-  #add_header_to_even_sized_1k_chr_vcf_chunks
+  #add_header_to_even_sized_0k_chr_vcf_chunks
   #remove_raw_even_sized_1k_chr_vcf_chunks
 end

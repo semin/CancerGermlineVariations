@@ -6,15 +6,14 @@ $baseDir = Pathname.new("/groups/kucherlapati/GCC/Germline")
 $scriptDir = $baseDir + "Scripts"
 
 def filter_vcfs
-  #cancerTypes = %w[BLCA CESC CRC HNSC LGG LUAD PRAD SKCM STAD THCA UCEC]
-  cancerTypes = %w[LUAD]
+  cancerTypes = %w[BLCA CESC CRC HNSC LGG LUAD PRAD SKCM STAD THCA UCEC]
   rScript = $scriptDir + "GCC-Germline-Filter_VCFs.R"
   cancerTypes.each do |cancerType|
     lsfout = rScript.sub_ext(".R.#{cancerType}.lsfout")
     cmd =<<-CMD
       bsub \\
         -g /gcc/germ/filter \\
-        -q i2b2_12h -W 12:0 \\
+        -q short -W 12:0 \\
         -R "rusage[mem=70000] span[hosts=1]" \\
         -M 70000000 \\
         -o #{lsfout} \\
