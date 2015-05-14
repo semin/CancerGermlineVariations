@@ -447,31 +447,28 @@ def annotate_snp_chr_vcfs_with_cadd_scores
 end
 
 def annotate_chr_vcfs_with_vep
-  #canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
-  #canType = "{BLCA,CESC,CRC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
-  #canType = "{HNSC}"
   vep_bin = Pathname.new "/home/sl279/vep/variant_effect_predictor.pl"
   vep_dir = Pathname.new "/home/sl279/.vep"
   encode_dcc_dir = $baseDir + "UCSC/encodeDCC"
   ucsc_db_dir = $baseDir + "UCSC/database"
   fantom5_dir = $baseDir + "FANTOM5"
   dbsuper_dir = $baseDir + "dbSUPER"
-  #snp_vcfs = Pathname.glob($canVcfDir + "#{canType}/snp/chrs/*/*.cadd.vcf.gz").sort
-  #indel_vcfs = Pathname.glob($canVcfDir + "#{canType}/indel/chrs/*/*.esp.vcf.gz").sort
+  fdgenome_dir = $baseDir + "4DGenome"
+  insituhic_dir = $baseDir + "HiC/GSE63525/suppl"
+  roadmap_dir = $baseDir + "Roadmap"
+  mtab2323_dir = $baseDir + "E-MTAB-2323"
   snp_vcfs = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.cadd.vcf.gz").sort
-  #indel_vcfs = Pathname.glob($canVcfDir + "*/indel/chrs/*/*.esp.vcf.gz").sort
-  #vcfs = [indel_vcfs, snp_vcfs].flatten
-  vcfs = [snp_vcfs].flatten
-  Parallel.each_with_index(vcfs, :in_threads => 4) do |vcf, vi|
+  indel_vcfs = Pathname.glob($canVcfDir + "*/indel/chrs/*/*.esp.vcf.gz").sort
+  vcfs = [snp_vcfs, indel_vcfs].flatten
+  Parallel.each(vcfs, :in_threads => 10) do |vcf|
     vep_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".vep.vcf.gz")
     lsfout = vep_vcf.sub_ext(".gz.lsfout")
     next if lsfout.exist?
-      #-n 4 -R "span[hosts=1]" \\
       #-q short -W 12:0 \\
     cmd = <<-CMD
     bsub \\
       -g /gcc/germ/vep \\
-      -q i2b2_1d \\
+      -q mcore -W 700:0 \\
       -n 2 \\
       -R "rusage[mem=20000] span[hosts=1]" -M 20000000 \\
       -o #{lsfout} \\
@@ -485,31 +482,39 @@ def annotate_chr_vcfs_with_vep
         --total_length \\
         --allele_number \\
         --no_escape \\
+        --per_gene \\
+        --symbol \\
         --gencode_basic \\
         --vcf \\
         --assembly GRCh37 \\
         --dir #{vep_dir} \\
-        --fasta #{vep_dir}/homo_sapiens/76_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa \\
-        --custom #{ucsc_db_dir}/gap.bed.gz,gap,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/genomicSuperDups.bed.gz,genomicSuperDups,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/gwasCatalog.bed.gz,gwasCatalog,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/targetScanS.bed.gz,targetScanS,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/tfbsConsSites.bed.gz,tfbsConsSites,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/wgRna.bed.gz,wgRna,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/phastConsElements46way.bed.gz,phastConsElements46way,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/phastConsElements100way.bed.gz,phastConsElements100way,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/rmsk.bed.gz,rmsk,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/nestedRepeats.bed.gz,nestedRepeats,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/simpleRepeat.bed.gz,simpleRepeat,bed,overlap,0 \\
-        --custom #{ucsc_db_dir}/microsat.bed.gz,microsat,bed,overlap,0 \\
-        --custom #{encode_dcc_dir}/wgEncodeRegDnaseClusteredV3.bed.gz,wgEncodeRegDnaseClusteredV3,bed,overlap,0 \\
-        --custom #{encode_dcc_dir}/wgEncodeAwgDnaseMasterSites.bed.gz,wgEncodeAwgDnaseMasterSites,bed,overlap,0 \\
+        --fasta #{vep_dir}/homo_sapiens/78_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa \\
         --custom #{encode_dcc_dir}/distalDhsToPromoterDhs.bed.gz,distalDhsToPromoterDhs,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/dhsToGeneExpression.bed.gz,dhsToGeneExpression,bed,overlap,0 \\
-        --custom #{fantom5_dir}/fantom5PermissiveEnhancers.bed.gz,fantom5PermissiveEnhancers,bed,overlap,0 \\
         --custom #{fantom5_dir}/fantom5EnhancerTssAssociations.bed.gz,fantom5EnhancerTssAssociations,bed,overlap,0 \\
-        --custom #{dbsuper_dir}/all/allDbSuperEnhancers.bed.gz,allDbSuperEnhancers,bed,overlap,0 \\
         --custom #{dbsuper_dir}/all/allDbSuperEnhancerGeneAssociations.bed.gz,allDbSuperEnhancerGeneAssociations,bed,overlap,0 \\
+        --custom #{fdgenome_dir}/4dGenomeHomoSapiens.bed.gz,fourDGenomeHomoSapiens,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_GM12878_primary+replicate_HiCCUPS_looplist.annotated.bed.gz,GSE63525_GM12878_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_HeLa_HiCCUPS_looplist.annotated.bed.gz,GSE63525_HeLa_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_HMEC_HiCCUPS_looplist.annotated.bed.gz,GSE63525_HMEC_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_HUVEC_HiCCUPS_looplist.annotated.bed.gz,GSE63525_HUVEC_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_IMR90_HiCCUPS_looplist.annotated.bed.gz,GSE63525_IMR90_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_K562_HiCCUPS_looplist.annotated.bed.gz,GSE63525_K562_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_KBM7_HiCCUPS_looplist.annotated.bed.gz,GSE63525_KBM7_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_NHEK_HiCCUPS_looplist.annotated.bed.gz,GSE63525_NHEK_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_NHEK_HiCCUPS_looplist.annotated.bed.gz,GSE63525_NHEK_HiCCUPS_looplist,bed,overlap,0 \\
+        --custom #{insituhic_dir}/GSE63525_GM12878_100kb_inter_MAPQGE30_SQRTVC.bed.gz,GSE63525_GM12878_100kb_inter_MAPQGE30_SQRTVC,bed,overlap,0 \\
+        --custom #{mtab2323_dir}/TS5_CD34_promoter-other_significant_interactions.bed.gz,TS5_CD34_promoter-other_significant_interactions,bed,overlap,0 \\
+        --custom #{mtab2323_dir}/TS5_CD34_promoter-promoter_significant_interactions.bed.gz,TS5_CD34_promoter-promoter_significant_interactions,bed,overlap,0 \\
+        --custom #{mtab2323_dir}/TS5_GM12878_promoter-other_significant_interactions.bed.gz,TS5_GM12878_promoter-other_significant_interactions,bed,overlap,0 \\
+        --custom #{mtab2323_dir}/TS5_GM12878_promoter-promoter_significant_interactions.bed.gz,TS5_GM12878_promoter-promoter_significant_interactions,bed,overlap,0 \\
+        --custom #{encode_dcc_dir}/wgEncodeAwgDnaseMasterSites.bed.gz,wgEncodeAwgDnaseMasterSites,bed,overlap,0 \\
+        --custom #{encode_dcc_dir}/wgEncodeRegDnaseClusteredV3.bed.gz,wgEncodeRegDnaseClusteredV3,bed,overlap,0 \\
+        --custom #{fantom5_dir}/fantom5PermissiveEnhancers.bed.gz,fantom5PermissiveEnhancers,bed,overlap,0 \\
+        --custom #{dbsuper_dir}/all/allDbSuperEnhancers.bed.gz,allDbSuperEnhancers,bed,overlap,0 \\
+        --custom #{roadmap_dir}/dnase/roadmapDnaseDyadic.bed.gz,roadmapDnaseDyadic,bed,overlap,0 \\
+        --custom #{roadmap_dir}/dnase/roadmapDnaseEnh.bed.gz,roadmapDnaseEnh,bed,overlap,0 \\
+        --custom #{roadmap_dir}/dnase/roadmapDnaseProm.bed.gz,roadmapDnaseProm,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeRegTfbsClusteredWithCellsV3.bed.gz,wgEncodeRegTfbsClusteredWithCellsV3,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedGm12878.bed.gz,wgEncodeAwgSegmentationCombinedGm12878,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedH1hesc.bed.gz,wgEncodeAwgSegmentationChromhmmH1hesc,bed,overlap,0 \\
@@ -517,6 +522,145 @@ def annotate_chr_vcfs_with_vep
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedHepg2.bed.gz,wgEncodeAwgSegmentationCombinedHepg2,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedHuvec.bed.gz,wgEncodeAwgSegmentationCombinedHuvec,bed,overlap,0 \\
         --custom #{encode_dcc_dir}/wgEncodeAwgSegmentationCombinedK562.bed.gz,wgEncodeAwgSegmentationCombinedK562,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E001_15_coreMarks_mnemonics.bed.gz,E001_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E002_15_coreMarks_mnemonics.bed.gz,E002_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E003_15_coreMarks_mnemonics.bed.gz,E003_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E004_15_coreMarks_mnemonics.bed.gz,E004_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E005_15_coreMarks_mnemonics.bed.gz,E005_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E006_15_coreMarks_mnemonics.bed.gz,E006_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E007_15_coreMarks_mnemonics.bed.gz,E007_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E008_15_coreMarks_mnemonics.bed.gz,E008_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E009_15_coreMarks_mnemonics.bed.gz,E009_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E010_15_coreMarks_mnemonics.bed.gz,E010_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E011_15_coreMarks_mnemonics.bed.gz,E011_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E012_15_coreMarks_mnemonics.bed.gz,E012_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E013_15_coreMarks_mnemonics.bed.gz,E013_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E014_15_coreMarks_mnemonics.bed.gz,E014_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E015_15_coreMarks_mnemonics.bed.gz,E015_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E016_15_coreMarks_mnemonics.bed.gz,E016_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E017_15_coreMarks_mnemonics.bed.gz,E017_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E018_15_coreMarks_mnemonics.bed.gz,E018_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E019_15_coreMarks_mnemonics.bed.gz,E019_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E020_15_coreMarks_mnemonics.bed.gz,E020_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E021_15_coreMarks_mnemonics.bed.gz,E021_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E022_15_coreMarks_mnemonics.bed.gz,E022_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E023_15_coreMarks_mnemonics.bed.gz,E023_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E024_15_coreMarks_mnemonics.bed.gz,E024_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E025_15_coreMarks_mnemonics.bed.gz,E025_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E026_15_coreMarks_mnemonics.bed.gz,E026_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E027_15_coreMarks_mnemonics.bed.gz,E027_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E028_15_coreMarks_mnemonics.bed.gz,E028_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E029_15_coreMarks_mnemonics.bed.gz,E029_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E030_15_coreMarks_mnemonics.bed.gz,E030_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E031_15_coreMarks_mnemonics.bed.gz,E031_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E032_15_coreMarks_mnemonics.bed.gz,E032_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E033_15_coreMarks_mnemonics.bed.gz,E033_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E034_15_coreMarks_mnemonics.bed.gz,E034_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E035_15_coreMarks_mnemonics.bed.gz,E035_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E036_15_coreMarks_mnemonics.bed.gz,E036_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E037_15_coreMarks_mnemonics.bed.gz,E037_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E038_15_coreMarks_mnemonics.bed.gz,E038_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E039_15_coreMarks_mnemonics.bed.gz,E039_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E040_15_coreMarks_mnemonics.bed.gz,E040_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E041_15_coreMarks_mnemonics.bed.gz,E041_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E042_15_coreMarks_mnemonics.bed.gz,E042_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E043_15_coreMarks_mnemonics.bed.gz,E043_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E044_15_coreMarks_mnemonics.bed.gz,E044_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E045_15_coreMarks_mnemonics.bed.gz,E045_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E046_15_coreMarks_mnemonics.bed.gz,E046_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E047_15_coreMarks_mnemonics.bed.gz,E047_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E048_15_coreMarks_mnemonics.bed.gz,E048_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E049_15_coreMarks_mnemonics.bed.gz,E049_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E050_15_coreMarks_mnemonics.bed.gz,E050_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E051_15_coreMarks_mnemonics.bed.gz,E051_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E052_15_coreMarks_mnemonics.bed.gz,E052_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E053_15_coreMarks_mnemonics.bed.gz,E053_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E054_15_coreMarks_mnemonics.bed.gz,E054_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E055_15_coreMarks_mnemonics.bed.gz,E055_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E056_15_coreMarks_mnemonics.bed.gz,E056_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E057_15_coreMarks_mnemonics.bed.gz,E057_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E058_15_coreMarks_mnemonics.bed.gz,E058_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E059_15_coreMarks_mnemonics.bed.gz,E059_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E061_15_coreMarks_mnemonics.bed.gz,E061_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E062_15_coreMarks_mnemonics.bed.gz,E062_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E063_15_coreMarks_mnemonics.bed.gz,E063_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E065_15_coreMarks_mnemonics.bed.gz,E065_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E066_15_coreMarks_mnemonics.bed.gz,E066_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E067_15_coreMarks_mnemonics.bed.gz,E067_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E068_15_coreMarks_mnemonics.bed.gz,E068_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E069_15_coreMarks_mnemonics.bed.gz,E069_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E070_15_coreMarks_mnemonics.bed.gz,E070_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E071_15_coreMarks_mnemonics.bed.gz,E071_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E072_15_coreMarks_mnemonics.bed.gz,E072_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E073_15_coreMarks_mnemonics.bed.gz,E073_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E074_15_coreMarks_mnemonics.bed.gz,E074_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E075_15_coreMarks_mnemonics.bed.gz,E075_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E076_15_coreMarks_mnemonics.bed.gz,E076_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E077_15_coreMarks_mnemonics.bed.gz,E077_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E078_15_coreMarks_mnemonics.bed.gz,E078_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E079_15_coreMarks_mnemonics.bed.gz,E079_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E080_15_coreMarks_mnemonics.bed.gz,E080_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E081_15_coreMarks_mnemonics.bed.gz,E081_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E082_15_coreMarks_mnemonics.bed.gz,E082_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E083_15_coreMarks_mnemonics.bed.gz,E083_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E084_15_coreMarks_mnemonics.bed.gz,E084_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E085_15_coreMarks_mnemonics.bed.gz,E085_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E086_15_coreMarks_mnemonics.bed.gz,E086_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E087_15_coreMarks_mnemonics.bed.gz,E087_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E088_15_coreMarks_mnemonics.bed.gz,E088_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E089_15_coreMarks_mnemonics.bed.gz,E089_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E090_15_coreMarks_mnemonics.bed.gz,E090_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E091_15_coreMarks_mnemonics.bed.gz,E091_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E092_15_coreMarks_mnemonics.bed.gz,E092_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E093_15_coreMarks_mnemonics.bed.gz,E093_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E094_15_coreMarks_mnemonics.bed.gz,E094_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E095_15_coreMarks_mnemonics.bed.gz,E095_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E096_15_coreMarks_mnemonics.bed.gz,E096_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E097_15_coreMarks_mnemonics.bed.gz,E097_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E098_15_coreMarks_mnemonics.bed.gz,E098_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E099_15_coreMarks_mnemonics.bed.gz,E099_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E100_15_coreMarks_mnemonics.bed.gz,E100_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E101_15_coreMarks_mnemonics.bed.gz,E101_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E102_15_coreMarks_mnemonics.bed.gz,E102_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E103_15_coreMarks_mnemonics.bed.gz,E103_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E104_15_coreMarks_mnemonics.bed.gz,E104_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E105_15_coreMarks_mnemonics.bed.gz,E105_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E106_15_coreMarks_mnemonics.bed.gz,E106_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E107_15_coreMarks_mnemonics.bed.gz,E107_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E108_15_coreMarks_mnemonics.bed.gz,E108_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E109_15_coreMarks_mnemonics.bed.gz,E109_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E110_15_coreMarks_mnemonics.bed.gz,E110_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E111_15_coreMarks_mnemonics.bed.gz,E111_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E112_15_coreMarks_mnemonics.bed.gz,E112_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E113_15_coreMarks_mnemonics.bed.gz,E113_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E114_15_coreMarks_mnemonics.bed.gz,E114_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E115_15_coreMarks_mnemonics.bed.gz,E115_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E116_15_coreMarks_mnemonics.bed.gz,E116_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E117_15_coreMarks_mnemonics.bed.gz,E117_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E118_15_coreMarks_mnemonics.bed.gz,E118_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E119_15_coreMarks_mnemonics.bed.gz,E119_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E120_15_coreMarks_mnemonics.bed.gz,E120_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E121_15_coreMarks_mnemonics.bed.gz,E121_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E122_15_coreMarks_mnemonics.bed.gz,E122_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E123_15_coreMarks_mnemonics.bed.gz,E123_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E124_15_coreMarks_mnemonics.bed.gz,E124_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E125_15_coreMarks_mnemonics.bed.gz,E125_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E126_15_coreMarks_mnemonics.bed.gz,E126_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E127_15_coreMarks_mnemonics.bed.gz,E127_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E128_15_coreMarks_mnemonics.bed.gz,E128_15_coreMarks,bed,overlap,0 \\
+        --custom #{roadmap_dir}/chromhmm/E129_15_coreMarks_mnemonics.bed.gz,E129_15_coreMarks,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/gwasCatalog.bed.gz,gwasCatalog,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/targetScanS.bed.gz,targetScanS,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/tfbsConsSites.bed.gz,tfbsConsSites,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/wgRna.bed.gz,wgRna,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/phastConsElements46way.bed.gz,phastConsElements46way,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/phastConsElements100way.bed.gz,phastConsElements100way,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/gap.bed.gz,gap,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/genomicSuperDups.bed.gz,genomicSuperDups,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/rmsk.bed.gz,rmsk,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/nestedRepeats.bed.gz,nestedRepeats,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/simpleRepeat.bed.gz,simpleRepeat,bed,overlap,0 \\
+        --custom #{ucsc_db_dir}/microsat.bed.gz,microsat,bed,overlap,0 \\
         --input_file #{vcf} \\
         --output_file STDOUT | bgzip -c > #{vep_vcf} && tabix -p vcf #{vep_vcf}"
     CMD
@@ -1105,6 +1249,77 @@ def add_header_to_even_sized_1k_chr_vcf_chunks
     end
   end
 end
+def run_vep_to_overlap_targetscans
+  vepVcfFiles = Pathname.glob("*/#{canType}/snp/chrs/*/*.maf05.vcf.gz").sort
+  vepVcfFiles.each do |vepVcfFile|
+    tsVcfFile = vepVcfFile.dirname + vepVcfFile.basename(".gz").sub_ext(".targetScanS.vcf.gz")
+    lsfout = tsVcfFile.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -q short -W 12:0 \\
+        -g /gcc/germ/eur \\
+        -R "rusage[mem=10000]" -M 10000000 \\
+        -o #{lsfout} \\
+          #{$java7Bin} -Xmx10g -jar #{$gatk3Bin} \\
+            -T SelectVariants \\
+            -R #{$refSeq} \\
+            --variant #{vcfChrFile} \\
+            --sample_file #{eurPopFile} \\
+            -o #{vcfChrEurFile}
+    CMD
+    puts cmd
+  end
+end
+
+
+def annotate_targetscan
+  vep_bin = Pathname.new "/home/sl279/vep/variant_effect_predictor.pl"
+  vep_dir = Pathname.new "/home/sl279/.vep"
+  ucsc_db_dir = $baseDir + "UCSC/database"
+  vepVcfFiles = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.maf05.vcf.gz").sort
+  vepVcfFiles.each do |vepVcfFile|
+    vep_vcf = vepVcfFile.dirname + vepVcfFile.basename(".gz").sub_ext(".vep.vcf.gz")
+    lsfout = vep_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+    bsub \\
+      -g /gcc/germ/vep \\
+      -q short -W 12:0 \\
+      -R "rusage[mem=20000] span[hosts=1]" -M 20000000 \\
+      -o #{lsfout} \\
+      "perl #{vep_bin} \\
+        --force_overwrite \\
+        --offline \\
+        --no_stats \\
+        --vcf \\
+        --assembly GRCh37 \\
+        --dir #{vep_dir} \\
+        --fasta /home/sl279/.vep/homo_sapiens/78_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa \\
+        --custom #{ucsc_db_dir}/targetScanS.bed.gz,targetScanS,bed,overlap,0 \\
+        --input_file #{vepVcfFile} \\
+        --output_file STDOUT | bgzip -c > #{vep_vcf} && tabix -p vcf #{vep_vcf}"
+    CMD
+    submit cmd
+  end
+end
+
+def extract_targetscan
+  vepVcfFiles = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.maf05.vep.vcf.gz").sort
+  vepVcfFiles.each do |vepVcfFile|
+    ts_vcf = vepVcfFile.dirname + vepVcfFile.basename(".gz").sub_ext(".targetScanS.vcf.gz")
+    lsfout = ts_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+    bsub \\
+      -g /gcc/germ/vep \\
+      -q short -W 12:0 \\
+      -o #{lsfout} 'zgrep -P "(^#|targetScanS)" #{vepVcfFile} | bgzip -c > #{ts_vcf} && tabix -p vcf #{ts_vcf}'
+    CMD
+    system cmd
+  end
+end
+
 
 
 if __FILE__ == $0
@@ -1123,10 +1338,13 @@ if __FILE__ == $0
   #annotate_chr_vcfs_with_1000genomes_afs
   #annotate_chr_vcfs_with_esp6500si_afs
   #annotate_snp_chr_vcfs_with_cadd_scores
-  #annotate_chr_vcfs_with_vep
+  annotate_chr_vcfs_with_vep
   #extract_eur_chr_vcfs
   #extract_afs_from_eur_chr_vcfs
   #concat_chr_vep_vcfs
+
+  #annotate_targetscan
+  #extract_targetscan
 
   ## ?
 
