@@ -707,9 +707,6 @@ def extract_eur_chr_vcfs
 end
 
 def extract_afs_from_eur_chr_vcfs
-  #canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
-  #canType = "{CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
-  #vcfChrEurFiles = Pathname.glob("#{$canVcfDir}/#{canType}/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
   vcfChrEurFiles = Pathname.glob("#{$canVcfDir}/*/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
   Parallel.each(vcfChrEurFiles, :in_threads => 10) do |vcfChrEurFile|
     puts vcfChrEurFile
@@ -1338,10 +1335,10 @@ if __FILE__ == $0
   #annotate_chr_vcfs_with_1000genomes_afs
   #annotate_chr_vcfs_with_esp6500si_afs
   #annotate_snp_chr_vcfs_with_cadd_scores
-  annotate_chr_vcfs_with_vep
+  #annotate_chr_vcfs_with_vep
   #extract_eur_chr_vcfs
   #extract_afs_from_eur_chr_vcfs
-  #concat_chr_vep_vcfs
+  ##concat_chr_vep_vcfs
 
   #annotate_targetscan
   #extract_targetscan

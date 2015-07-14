@@ -2,6 +2,7 @@
 
 require "date"
 require "logger"
+require "parallel"
 require "pathname"
 require "fileutils"
 
@@ -21,10 +22,10 @@ end
 
 $javaBin        = Pathname.new("/opt/java/jdk7/bin/java")
 $gccBamDir1     = Pathname.new("/groups/kucherlapati/GCC/LevelII")
-$gccBamDir2     = Pathname.new("/files/CBMI/parklab/tcga/hg18BAMs")
 $homeDir        = Pathname.new("/home/sl279")
 $baseDir        = $homeDir + "BiO/Research/GCC/Germline"
-$newBamDir      = Pathname.new("/hms/scratch1/sl279/BiO/Research/GCC/Germline/BAM/")
+$newBamDir      = Pathname.new("/n/data1/hms/dbmi/park/semin/BiO/Research/Germline/bam")
+$fastqDir       = $baseDir + "FASTQ"
 $scriptDir      = $baseDir + "Scripts"
 $vcfDir         = $baseDir + "VCF"
 $panVcfDir      = $vcfDir + "PANCAN"; $panVcfDir.mkpath
@@ -32,15 +33,14 @@ $canVcfDir      = $vcfDir + "CANCERS"; $canVcfDir.mkpath
 $oriQueueScript = $scriptDir + "RealignGccBams.scala"
 #$oriQueueScript = $scriptDir + "RealignGccCrcBams.scala"
 $installDir     = $homeDir + "BiO/Install"
-#$bwaBin         = $installDir + "bwa/bwa"
-$bwaBin         = $installDir + "bwa-0.7.7/bwa"
-$samtoolsBin    = $installDir + "samtools/samtools"
+$bwaBin         = Pathname.new("/home/sl279/.linuxbrew/bin/bwa")
+$samtoolsBin    = Pathname.new("/home/sl279/BiO/World/usr/local/bin/samtools")
 $queueBin       = $installDir + "Sting/dist/Queue.jar"
 $gatkBin        = $installDir + "GATK3/GenomeAnalysisTK.jar"
 $gatkBundleDir  = $installDir + "GATK-bundle" + "2.8" + "b37"
 $picardBinDir   = $installDir + "picard-tools"
+$picardBin      = Pathname.new("/home/sl279/BiO/Install/picard-tools-1.133/picard.jar")
 $refSeq         = $gatkBundleDir + "human_g1k_v37_decoy.fasta"
-#$refSeq         = Pathname.new "/groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.fasta"
 $dbsnp          = $gatkBundleDir + "dbsnp_138.b37.vcf"
 $hapmap         = $gatkBundleDir + "hapmap_3.3.b37.vcf"
 $g1kIndel       = $gatkBundleDir + "1000G_phase1.indels.b37.vcf"
@@ -48,8 +48,8 @@ $millsIndel     = $gatkBundleDir + "Mills_and_1000G_gold_standard.indels.b37.vcf
 $g1kOmni        = $gatkBundleDir + "1000G_omni2.5.b37.vcf"
 $chrs           = (1..22).to_a << "X" << "Y" << "MT"
 $chrchrs        = $chrs.map { |c| "chr#{c}" }
-$tmpDir         = Pathname.new("/hms/scratch1/sl279/tmp"); $tmpDir.mkpath
-$cancerTypes    = %w[BLCA BRCA CRC ESCA HNSC LGG LUAD PRAD SKCM STAD THCA UCEC]
+$tmpDir         = Pathname.new("/home/sl279/BiO/Temp"); $tmpDir.mkpath
+$cancerTypes    = %w[BLCA BRCA CRC ESCA HNSC LGG LUAD PRAD SKCM STAD THCA UCEC UVM]
 
 
 def realign_gcc_bams_using_queue
@@ -58,7 +58,7 @@ def realign_gcc_bams_using_queue
     newCancerBamDir = $newBamDir + cancerType; newCancerBamDir.mkpath
     newNormalStemFound  = {}
     oriBams             = if cancerType == "CRC"
-                            Pathname.glob($gccBamDir2 + "*" + "*{sorted,merged}.bam").sort
+                            Pathname.glob($gccBamDir1 + "*" + "*{sorted,merged}.bam").sort
                           else
                             Pathname.glob($gccBamDir1 + cancerType + "*" + "*sorted.bam").sort
                           end
@@ -467,6 +467,231 @@ def refine_gcc_bams
   end
 end
 
+def name_sort_bams
+  $cancerTypes.each do |cancerType|
+    newCancerDir = $newBamDir + cancerType; newCancerDir.mkpath
+    newNormalStemFound  = {}
+    oriBams = if cancerType == "CRC"
+                Pathname.glob($gccBamDir1 + "*" + "*recal.bam").sort
+              else
+                Pathname.glob($gccBamDir1 + cancerType + "*" + "*sorted.bam").sort
+              end
+    oriNormalBams = oriBams.select { |b| b.basename.to_s =~ /TCGA\-\S{2}\-\S{4}-(\d{2})\S{1}/ && $1.to_i >= 10 }
+    $logger.info "[#{cancerType}] #{oriNormalBams.size} original normal bams found"
+
+    oriNormalBams.each do |oriNormalBam|
+      nameSortedOriNormalBamStem = newCancerDir + oriNormalBam.basename.sub_ext(".nsorted")
+      nameSortedOriNormalBam = newCancerDir + oriNormalBam.basename.sub_ext(".nsorted.bam")
+      nsortCmdLsfOut = nameSortedOriNormalBam.sub_ext(".bam.lsfout")
+      next if nsortCmdLsfOut.exist?
+      cmd =<<-CMD
+        bsub \\
+          -g /germ/sort \\
+          -q short -W 12:0 \\
+          -o #{nsortCmdLsfOut} \\
+          #{$samtoolsBin} sort -n -o #{nameSortedOriNormalBam} -T #{nameSortedOriNormalBamStem} #{oriNormalBam}
+      CMD
+      submit cmd
+    end
+  end
+end
+
+def run_bwa_mem
+  ncores = 4
+  $cancerTypes.each do |cancerType|
+    oriBams = if cancerType == "CRC"
+                Pathname.glob($gccBamDir1 + "*" + "*recal.bam").sort
+              else
+                Pathname.glob($gccBamDir1 + cancerType + "*" + "*sorted.bam").sort
+              end
+    oriNormalBams = oriBams.select { |b| b.basename.to_s =~ /TCGA\-\S{2}\-\S{4}-(\d{2})\S{1}/ && $1.to_i >= 10 }
+    $logger.info "[#{cancerType}] #{oriNormalBams.size} original normal bams found"
+    newCancerDir = $newBamDir + cancerType; newCancerDir.mkpath
+    oriNormalBams.each do |oriNormalBam|
+      oriNormalStem = oriNormalBam.basename.to_s
+      dirRunId = oriNormalBam.dirname.basename.to_s
+      patientId = $1 if oriNormalStem =~ /(TCGA-\S{2}-\S{4})/
+      sampleId, sampleRunId = $1, $2 if (oriNormalStem =~ /^(TCGA-\S{2}-\S{4}-\S{3})\S+?\_(\S+?)(\_s\_\S+|)\./)
+      #110525_SN590_0091_AC02W2ABXX/TCGA-AA-3681-10A-01D-1638-02_110525_SN590_0091_AC02W2ABXX_s_8.rg.sorted.bam
+      #merged/TCGA-AA-3688-10A-01D_100907_HWUSI-EAS656_0025_s_4_1.merged.bam
+      runId = dirRunId !~ /^\d+/ ? sampleRunId : dirRunId
+      nameSortedOriNormalBamStem = newCancerDir + oriNormalBam.basename(".bam").sub_ext(".nsorted")
+      sortedBam = nameSortedOriNormalBamStem.sub_ext(".mem.st.bam")
+      lsfout = sortedBam.sub_ext(".bam.lsfout")
+      raDataLsfout = sortedBam.sub_ext(".dm.ra.rc.data.lsfout")
+      next if raDataLsfout.exist?
+      lsfout.delete if lsfout.exist?
+      cmd = <<-CMD
+        bsub \\
+          -g /germ/bwa \\
+          -q mcore -W 150:0 \\
+          -R "rusage[mem=11000] span[hosts=1]" \\
+          -M 11000000 \\
+          -n #{ncores} \\
+          -o #{lsfout} "
+          #{$samtoolsBin} sort -@ #{ncores} -n -l 1 -O bam -T #{nameSortedOriNormalBamStem} #{oriNormalBam} | \\
+          bamToFastq \\
+            -i /dev/stdin \\
+            -fq /dev/stdout \\
+            -fq2 /dev/stdout | \\
+          #{$bwaBin} mem -p -M -t #{ncores} -R \'@RG\\tID:0\\tPL:ILLUMINA\\tPU:#{runId}\\tLB:#{sampleId}\\tSM:#{sampleId}\\tCN:Harvard_GCC\' -v 1 #{$refSeq} - | \\
+          #{$samtoolsBin} sort -@ #{ncores} -o #{sortedBam} -T #{sortedBam.sub_ext('')} -"
+          
+      CMD
+      submit cmd
+    end
+  end
+end
+
+def remove_failed_bams
+  lsfFiles = Pathname.glob($baseDir + "BAM" + "*" + "*.lsfout")
+  lsfFiles.each do |lsfFile|
+    if lsfFile.read.match(/Exited with/m)
+      lsfFileStem = lsfFile.basename.to_s.split(".")[0]
+      tmpFiles = Pathname.glob(lsfFile.dirname + "#{lsfFileStem}*")
+      FileUtils.rm tmpFiles
+    end
+  end
+end
+
+def mark_duplicates
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.st.bam").sort
+  bams.each_with_index do |raw_bam, si|
+    dedup_bam = raw_bam.sub_ext(".dm.bam")
+    dedup_bai = raw_bam.sub_ext(".dm.bai")
+    dedup_metrics = dedup_bam.sub_ext(".metrics")
+    lsfout = dedup_bam.sub_ext(".bam.lsfout")
+    #next if lsfout.exist?
+    lsfout.delete if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/md \\
+        -q short -W 12:0 \\
+        -R "rusage[mem=6000] span[hosts=1]" \\
+        -M 6000000 \\
+        -o #{lsfout} \\
+        #{$javaBin} -Xmx5G -jar #{$picardBin} MarkDuplicates \\
+          INPUT=#{raw_bam} \\
+          OUTPUT=#{dedup_bam} \\
+          METRICS_FILE=#{dedup_metrics} \\
+          CREATE_INDEX=true \\
+          TMP_DIR=#{$tmpDir} \\
+          MAX_RECORDS_IN_RAM=150000 \\
+          VALIDATION_STRINGENCY=SILENT
+    CMD
+    submit cmd
+  end
+end
+
+def remove_duplicates
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.st.bam").sort
+  bams.each_with_index do |raw_bam, si|
+    dedup_bam = raw_bam.sub_ext(".dm.bam")
+    dedup_bai = raw_bam.sub_ext(".dm.bai")
+    lsfout = dedup_bam.sub_ext(".bam.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/md \\
+        -q short -W 12:0 \\
+        -R "rusage[mem=6000] span[hosts=1]" \\
+        -M 6000000 \\
+        -o #{lsfout} \\
+        /n/data1/hms/dbmi/park/semin/BiO/Install/samtools-0.1.19/samtools rmdup #{raw_bam} #{dedup_bam}
+    CMD
+    submit cmd
+  end
+end
+
+def create_realigner_target
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.dm.bam").sort
+  bams.each_with_index do |bam, si|
+    realigner_interval = bam.sub_ext(".ra.intervals")
+    lsfout = realigner_interval.sub_ext(".intervals.lsfout")
+    #next if lsfout.exist?
+    lsfout.delete if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/ra \\
+        -q short -W 12:0 \\
+        -o #{lsfout} \\
+        java -Xmx5G -jar #{$gatkBin} \\
+          -T RealignerTargetCreator \\
+          -I #{bam} \\
+          -o #{realigner_interval} \\
+          -R #{$refSeq} \\
+          -known #{$g1kIndel} \\
+          -known #{$millsIndel} \\
+          -allowPotentiallyMisencodedQuals
+    CMD
+    submit cmd
+  end
+end
+
+def realign_indels
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.dm.bam").sort
+  bams.each_with_index do |bam, si|
+    realigner_interval = bam.sub_ext(".ra.intervals")
+    realigned_bam = bam.sub_ext(".ra.bam")
+    lsfout = realigned_bam.sub_ext(".bam.lsfout")
+    #next if lsfout.exist?
+    lsfout.delete if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/ra \\
+        -q i2b2_1d \\
+        -o #{lsfout} \\
+        java -Xmx5G -jar #{$gatkBin} \\
+          -T IndelRealigner \\
+          -targetIntervals #{realigner_interval} \\
+          -I #{bam} \\
+          -o #{realigned_bam} \\
+          -R #{$refSeq} \\
+          -allowPotentiallyMisencodedQuals \\
+          --filter_bases_not_stored \\
+          -known #{$g1kIndel} \\
+          -known #{$millsIndel}
+    CMD
+    submit cmd
+  end
+end
+
+def run_bqsr
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.ra.bam").sort
+  Parallel.each(bams, :in_threads => 5) do |bam|
+    rc_data = bam.sub_ext(".rc.data")
+    lsfout = rc_data.sub_ext(".data.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/rc \\
+        -q i2b2_7d \\
+        -o #{lsfout} \\
+        java -Xmx5G -jar #{$gatkBin} \\
+          -T BaseRecalibrator \\
+          -I #{bam} \\
+          -o #{rc_data} \\
+          -R #{$refSeq} \\
+          -knownSites #{$dbsnp} \\
+          -knownSites #{$g1kIndel} \\
+          -knownSites #{$millsIndel} \\
+          -allowPotentiallyMisencodedQuals
+    CMD
+          #-fixMisencodedQuals
+    submit cmd
+  end
+end
+
 #realign_gcc_bams_using_queue
+#name_sort_bams
+
+#run_bwa_mem
+#mark_duplicates
+#remove_duplicates
+#create_realigner_target
+realign_indels
+#run_bqsr
+
 #refine_gcc_bams
-realign_gcc_bams
+#realign_gcc_bams
+#remove_failed_bams
