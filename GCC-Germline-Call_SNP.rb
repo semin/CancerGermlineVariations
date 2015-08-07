@@ -3,44 +3,44 @@
 require 'logger'
 require 'pathname'
 require 'parallel'
-require "google_drive_v0"
-require "google/api_client"
+#require "google_drive_v0"
+#require "google/api_client"
 
-$logger           = Logger.new(STDOUT)
-$logger.level     = Logger::DEBUG
+$logger = Logger.new(STDOUT)
+$logger.level = Logger::DEBUG
 
-$java7Bin        = Pathname.new("/opt/java/jdk1.7.0_71/bin/java")
-$gccBamDir1     = Pathname.new("/groups/kucherlapati/GCC/LevelII")
-$homeDir        = Pathname.new("/home/sl279")
-$baseDir        = Pathname.new("/groups/kucherlapati/GCC/Germline")
-$scriptDir      = $baseDir + "Scripts"
-$vcfDir         = $baseDir + "VCF"
-$panVcfDir      = $vcfDir + "PANCAN"; $panVcfDir.mkpath
-$canVcfDir      = $vcfDir + "CANCERS"; $canVcfDir.mkpath
-$installDir     = $homeDir + "BiO/Install"
-$bwaBin         = $installDir + "bwa-0.7.5a/bwa"
-$samtoolsBin    = $installDir + "samtools-0.1.19/samtools"
-$gatk2Bin        = $installDir + "GenomeAnalysisTK-2.8-1-g932cd3a/GenomeAnalysisTK.jar"
-$gatk3Bin        = $installDir + "GenomeAnalysisTK-3.3-0/GenomeAnalysisTK.jar"
-$queueBin       = $installDir + "Queue-3.3-0/Queue.jar"
-$gatkBundleDir  = $installDir + "GATK-bundle"
-#$refSeq         = $gatkBundleDir + "human_g1k_v37_decoy.fasta"
-$refSeq         = Pathname.new "/groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.fasta"
-$refDict        = Pathname.new "/groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.dict"
-$dbsnpDir       = $baseDir + "DBSNP"
-$dbsnp          = $gatkBundleDir + "dbsnp_138.b37.vcf"
-$hapmap         = $gatkBundleDir + "hapmap_3.3.b37.vcf"
-$g1kIndel       = $gatkBundleDir + "1000G_phase1.indels.b37.vcf"
-$g1kSnp         = $gatkBundleDir + "1000G_phase1.snps.high_confidence.b37.vcf"
-$millsIndel     = $gatkBundleDir + "Mills_and_1000G_gold_standard.indels.b37.vcf"
-$g1kOmni        = $gatkBundleDir + "1000G_omni2.5.b37.vcf"
-$chromLenb37    = $gatkBundleDir + "hg19.genome"
-$chrs           = (1..22).to_a << "X" << "Y"
-$chrchrs        = $chrs.map { |c| "chr#{c}" }
-#$tmpDir         = Pathname.new("/hms/scratch1/sl279/tmp"); $tmpDir.mkpath
-$tmpDir         = Pathname.new("/home/sl279/BiO/Temp/GATK"); $tmpDir.mkpath
-#$cancerTypes    = %w[BLCA CRC HNSC LUAD PRAD SKCM STAD THCA UCEC]
-$cancerTypes    = %w[CESC]
+$java7_bin        = Pathname.new("/opt/java/jdk1.7.0_71/bin/java")
+$gcc_bam_dir1     = Pathname.new("/groups/kucherlapati/GCC/LevelII")
+$home_dir         = Pathname.new("/home/sl279")
+$base_dir         = Pathname.new("/groups/kucherlapati/GCC/Germline")
+$bam_dir          = $base_dir + "BAM"
+$script_dir       = $base_dir + "Scripts"
+$vcf_dir          = $base_dir + "VCF"
+$gvcf_dir          = $base_dir + "GVCF"
+#$panVcfDir      = $vcf_dir + "PANCAN"; $panVcfDir.mkpath
+#$canVcfDir      = $vcf_dir + "CANCERS"; $canVcfDir.mkpath
+$install_dir      = $home_dir + "BiO/Install"
+$bwa_bin          = $install_dir + "bwa-0.7.5a/bwa"
+$samtools_bin     = $install_dir + "samtools-0.1.19/samtools"
+$gatk2_bin        = $install_dir + "GenomeAnalysisTK-2.8-1-g932cd3a/GenomeAnalysisTK.jar"
+$gatk3_bin        = $install_dir + "GATK3/GenomeAnalysisTK.jar"
+$queue3_bin       = $install_dir + "Queue-3.3-0/Queue.jar"
+$gatk_bundle_dir  = $install_dir + "GATK-bundle/2.8/b37"
+#$refseq_broad     = Pathname.new "/groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.fasta"
+$ref_dict          = Pathname.new "/groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.dict"
+$dbsnpDir         = $base_dir + "DBSNP"
+$refseq           = $gatk_bundle_dir + "human_g1k_v37_decoy.fasta"
+$dbsnp            = $gatk_bundle_dir + "dbsnp_138.b37.vcf"
+$hapmap           = $gatk_bundle_dir + "hapmap_3.3.b37.vcf"
+$g1kIndel         = $gatk_bundle_dir + "1000G_phase1.indels.b37.vcf"
+$g1kSnp           = $gatk_bundle_dir + "1000G_phase1.snps.high_confidence.b37.vcf"
+$millsIndel       = $gatk_bundle_dir + "Mills_and_1000G_gold_standard.indels.b37.vcf"
+$g1kOmni          = $gatk_bundle_dir + "1000G_omni2.5.b37.vcf"
+$chromLenb37      = $gatk_bundle_dir + "hg19.genome"
+$chrs             = (1..22).to_a << "X" << "Y"
+$chrchrs          = $chrs.map { |c| "chr#{c}" }
+$tmp_dir           = $home_dir + "BiO/Temp/GATK"; $tmp_dir.mkpath
+$cancer_types     = %w[BLCA BRCA CRC ESCA HNSC LGG LUAD PRAD SKCM STAD THCA UCEC UVM]
 #$normalWskey   = "0AqyF8I3ZSraYdFl3dmZReEhEOU1iOXdFVWs2TFFmcGc"
 #$normalWskey   = "0AqyF8I3ZSraYdEN4LTcxdVZtS21PQUtsOUFaeFJDR2c"
 $normalWskey   = "1ypZKmoAeE7OVbrp_Wfxasn1yEVpDPQBQcZD5z_zfOJs"
@@ -73,7 +73,7 @@ def call_snps_using_queue_using_old_bams_normal
   foundPatient  = {}
   readySamples  = {}
   totalCount    = 0
-  $cancerTypes.each do |cancerType|
+  $cancer_types.each do |cancerType|
     gdSsheet = gdSession.spreadsheet_by_key($normalWskey)
     gdWsheet = gdSsheet.worksheet_by_title(cancerType)
     readySamples[cancerType] = []
@@ -98,10 +98,10 @@ def call_snps_using_queue_using_old_bams_normal
     totalCount += readySamples[cancerType].size
     $logger.info "[#{cancerType}] #{readySamples[cancerType].size} analysis-ready bams found"
   end
-  $logger.info "[PanCan#{$cancerTypes.size}] #{totalCount} analysis-ready bams found in total"
+  $logger.info "[PanCan#{$cancer_types.size}] #{totalCount} analysis-ready bams found in total"
 
   # Create a list of bam files to be fed into
-  oriQueueScript = $scriptDir + "GCC-Germline-Call_SNP.scala"
+  oriQueueScript = $script_dir + "GCC-Germline-Call_SNP.scala"
   panQueueScript = $panVcfDir + oriQueueScript.basename.sub_ext("-PANCAN-Normal.scala")
   FileUtils.cp(oriQueueScript, panQueueScript)
   panBamListFile = $panVcfDir + "BamFileListForGATK-PanCan-Normal.list"
@@ -155,15 +155,15 @@ def call_snps_using_queue_using_old_bams_normal
           -g /gcc/ug/#{cancerType} \\
           -R "rusage[mem=25000]" -M 25000000 \\
           -o #{lsfout} \\
-          #{$java7Bin} -Xmx23G -jar #{$queueBin} \\
+          #{$java7_bin} -Xmx23G -jar #{$queue3_bin} \\
             -S #{canQueueScript} \\
             -i #{canBamListFile} \\
             -O #{$canVcfDir + cancerType} \\
             -st Harvard_GCC_WGS-#{cancerType}-Normal \\
             -logDir #{logDir} \\
-            -R #{$refSeq} \\
+            -R #{$refseq_broad} \\
             -D #{$dbsnp} \\
-            -tempDir #{$tmpDir} \\
+            -tempDir #{$tmp_dir} \\
             -bsub \\
             -jobQueue short \\
             -sg 2000 \\
@@ -176,9 +176,13 @@ def call_snps_using_queue_using_old_bams_normal
   end
 end
 
+def call_snps_using_queue_using_old_bams_normal
+end
+
+
 def recalibrate_vcf_using_queue
   canType = "CESC"
-  oriRecalScala = $scriptDir + "GCC-Germline-Recalibrate_VCF.scala"
+  oriRecalScala = $script_dir + "GCC-Germline-Recalibrate_VCF.scala"
   raw_vcfs = Pathname.glob($canVcfDir + "#{canType}/Harvard_GCC_WGS-*-Normal.dbsnp.vcf.gz")
   raw_vcfs.each do |raw_vcf|
     cancerDir = raw_vcf.dirname
@@ -193,18 +197,18 @@ def recalibrate_vcf_using_queue
         -q i2b2_7d \\
         -R "rusage[mem=25000]" -M 25000000 \\
         -o #{lsfout} \\
-        #{$java7Bin} -jar -Xmx23G #{$queueBin} \\
+        #{$java7_bin} -jar -Xmx23G #{$queue3_bin} \\
           -S #{cancerRecalScala} \\
           -i #{raw_vcf} \\
           -O #{cancerDir} \\
           -logDir #{cancerDir} \\
-          -R #{$refSeq} \\
+          -R #{$refseq_broad} \\
           -db #{$dbsnp} \\
           -hm #{$hapmap} \\
           -om #{$g1kOmni} \\
           -kg #{$g1kSnp} \\
           -ml #{$millsIndel} \\
-          -tempDir #{$tmpDir} \\
+          -tempDir #{$tmp_dir} \\
           -bsub \\
           -jobQueue i2b2_1d \\
           -sg 2000 \\
@@ -234,9 +238,9 @@ def split_vcf_by_chromosome
             -q short -W 12:0 \\
             -R "rusage[mem=10000]" -M 10000000 \\
             -o #{lsfout} \\
-            #{$java7Bin} -Xmx10g -jar #{$gatk3Bin} \\
+            #{$java7_bin} -Xmx10g -jar #{$gatk3_bin} \\
               -T SelectVariants \
-              -R #{$refSeq} \\
+              -R #{$refseq_broad} \\
               --variant #{vcfFile} \\
               -o #{vcfChrFile} \\
               -L #{chr} \\
@@ -349,7 +353,7 @@ def annotate_chr_vcfs_with_dbsnp_rsids
 end
 
 def annotate_chr_vcfs_with_1000genomes_afs
-  tgaf = $baseDir + "1000Genomes" + "ALL.wgs.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.afs.tsv.exp.gz"
+  tgaf = $base_dir + "1000Genomes" + "ALL.wgs.phase3_shapeit2_mvncall_integrated_v5.20130502.sites.afs.tsv.exp.gz"
   canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
   #canType = "{CESC,LGG}"
   vcfs = Pathname.glob($canVcfDir + "#{canType}/{snp,indel}/chrs/*/*.maf05.rsid.vcf.gz").sort
@@ -389,7 +393,7 @@ def annotate_chr_vcfs_with_1000genomes_afs
 end
 
 def annotate_chr_vcfs_with_esp6500si_afs
-  espAfFile = $baseDir + "NHLBI" + "ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.afs.sorted.txt.gz"
+  espAfFile = $base_dir + "NHLBI" + "ESP6500SI-V2-SSA137.GRCh38-liftover.snps_indels.afs.sorted.txt.gz"
   #canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
   #vcfs = Pathname.glob($canVcfDir + "#{canType}/{snp,indel}/chrs/*/*.tg.vcf.gz").sort
   vcfs = Pathname.glob($canVcfDir + "*/{snp,indel}/chrs/*/*.tg.vcf.gz").sort
@@ -420,7 +424,7 @@ def annotate_chr_vcfs_with_esp6500si_afs
 end
 
 def annotate_snp_chr_vcfs_with_cadd_scores
-  cadd = $baseDir + "CADD/v1.2/whole_genome_SNVs.tsv.gz"
+  cadd = $base_dir + "CADD/v1.2/whole_genome_SNVs.tsv.gz"
   #canType = "{BLCA,CESC,CRC,HNSC,LGG,LUAD,PRAD,SKCM,STAD,THCA,UCEC}"
   #vcfs = Pathname.glob($canVcfDir + "#{canType}/snp/chrs/*/*.esp.vcf.gz").sort
   vcfs = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.esp.vcf.gz").sort
@@ -449,14 +453,14 @@ end
 def annotate_chr_vcfs_with_vep
   vep_bin = Pathname.new "/home/sl279/vep/variant_effect_predictor.pl"
   vep_dir = Pathname.new "/home/sl279/.vep"
-  encode_dcc_dir = $baseDir + "UCSC/encodeDCC"
-  ucsc_db_dir = $baseDir + "UCSC/database"
-  fantom5_dir = $baseDir + "FANTOM5"
-  dbsuper_dir = $baseDir + "dbSUPER"
-  fdgenome_dir = $baseDir + "4DGenome"
-  insituhic_dir = $baseDir + "HiC/GSE63525/suppl"
-  roadmap_dir = $baseDir + "Roadmap"
-  mtab2323_dir = $baseDir + "E-MTAB-2323"
+  encode_dcc_dir = $base_dir + "UCSC/encodeDCC"
+  ucsc_db_dir = $base_dir + "UCSC/database"
+  fantom5_dir = $base_dir + "FANTOM5"
+  dbsuper_dir = $base_dir + "dbSUPER"
+  fdgenome_dir = $base_dir + "4DGenome"
+  insituhic_dir = $base_dir + "HiC/GSE63525/suppl"
+  roadmap_dir = $base_dir + "Roadmap"
+  mtab2323_dir = $base_dir + "E-MTAB-2323"
   snp_vcfs = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.cadd.vcf.gz").sort
   indel_vcfs = Pathname.glob($canVcfDir + "*/indel/chrs/*/*.esp.vcf.gz").sort
   vcfs = [snp_vcfs, indel_vcfs].flatten
@@ -673,7 +677,7 @@ def extract_eur_chr_vcfs
   canTypes.each do |canType|
     eurPopFile = $canVcfDir + canType + "EUR_Samples.txt"
     eurPopFile.open('w') do |file|
-      popFile = $baseDir + "Table" + "Continental_Ancestry_Prediction_For_TCGA_Individuals_With_Shared_SNPs-#{canType}.txt"
+      popFile = $base_dir + "Table" + "Continental_Ancestry_Prediction_For_TCGA_Individuals_With_Shared_SNPs-#{canType}.txt"
       popFile.readlines[1..-1].each do |line|
         cols = line.chomp.split("\t")
         pop = cols[-1]
@@ -694,9 +698,9 @@ def extract_eur_chr_vcfs
           -g /gcc/germ/eur \\
           -R "rusage[mem=10000]" -M 10000000 \\
           -o #{lsfout} \\
-          #{$java7Bin} -Xmx10g -jar #{$gatk3Bin} \\
+          #{$java7_bin} -Xmx10g -jar #{$gatk3_bin} \\
             -T SelectVariants \\
-            -R #{$refSeq} \\
+            -R #{$refseq_broad} \\
             --variant #{vcfChrFile} \\
             --sample_file #{eurPopFile} \\
             -o #{vcfChrEurFile}
@@ -761,7 +765,7 @@ def call_variants_using_haplotypercaller
   #foundPatient  = {}
   #readySamples  = {}
   #totalCount    = 0
-  #$cancerTypes.each do |cancerType|
+  #$cancer_types.each do |cancerType|
     #gdSsheet = gdSession.spreadsheet_by_key($normalWskey)
     #gdWsheet = gdSsheet.worksheet_by_title(cancerType)
     #readySamples[cancerType] = []
@@ -786,7 +790,7 @@ def call_variants_using_haplotypercaller
     #totalCount += readySamples[cancerType].size
     #$logger.info "[#{cancerType}] #{readySamples[cancerType].size} analysis-ready bams found"
   #end
-  #$logger.info "[PanCan#{$cancerTypes.size}] #{totalCount} analysis-ready bams found in total"
+  #$logger.info "[PanCan#{$cancer_types.size}] #{totalCount} analysis-ready bams found in total"
 
   ## Create a list of bam files to be fed into GATK callers
   panBamListFile = $panVcfDir + "BamFileListForGATK-PanCan.list"
@@ -853,11 +857,11 @@ def call_variants_using_haplotypercaller
             -M 15000000 \\
             -R "rusage[mem=15000]" \\
             -o #{lsf_out} \\
-            #{$java7Bin} -Xmx10G -jar #{$gatk2Bin} \\
+            #{$java7_bin} -Xmx10G -jar #{$gatk2_bin} \\
               -T HaplotypeCaller \\
               -I #{panBamListFile} \\
               -o #{roiVcf} \\
-              -R #{$refSeq} \\
+              -R #{$refseq_broad} \\
               --dbsnp #{$dbsnp} \\
               -stand_call_conf 10 \\
               -stand_emit_conf 4 \\
@@ -877,7 +881,7 @@ def call_variants_using_unifiedgenotyper
   #foundPatient  = {}
   #readySamples  = {}
   #totalCount    = 0
-  #$cancerTypes.each do |cancerType|
+  #$cancer_types.each do |cancerType|
     #gdSsheet = gdSession.spreadsheet_by_key($normalWskey)
     #gdWsheet = gdSsheet.worksheet_by_title(cancerType)
     #readySamples[cancerType] = []
@@ -902,7 +906,7 @@ def call_variants_using_unifiedgenotyper
     #totalCount += readySamples[cancerType].size
     #$logger.info "[#{cancerType}] #{readySamples[cancerType].size} analysis-ready bams found"
   #end
-  #$logger.info "[PanCan#{$cancerTypes.size}] #{totalCount} analysis-ready bams found in total"
+  #$logger.info "[PanCan#{$cancer_types.size}] #{totalCount} analysis-ready bams found in total"
 
   ## Create a list of bam files to be fed into GATK callers
   panBamListFile = $panVcfDir + "BamFileListForGATK-PanCan.list"
@@ -1001,12 +1005,12 @@ def call_variants_using_unifiedgenotyper
             -M 6000000 \\
             -R "rusage[mem=6000]" \\
             -o #{lsf_out} \\
-            #{$java7Bin} -Xmx5G -Djava.io.tmpdir=#{$tmpDir} -jar #{$gatk2Bin} \\
+            #{$java7_bin} -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk2_bin} \\
               -T UnifiedGenotyper \\
               -glm BOTH \\
               -I #{panBamListFile} \\
               -o #{roiVcf} \\
-              -R #{$refSeq} \\
+              -R #{$refseq_broad} \\
               --dbsnp #{$dbsnp} \\
               -stand_call_conf 10 \\
               -stand_emit_conf 4 \\
@@ -1069,7 +1073,7 @@ def convert_vcfs_to_bcfs
     bsub \\
       -g /gcc/germ/bcf \\
       -q park_7d \\
-      "bcftools view -bS #{vcf} -D #{$refDict} > #{bcf}"
+      "bcftools view -bS #{vcf} -D #{$ref_dict} > #{bcf}"
     CMD
     puts cmd
   end
@@ -1085,9 +1089,9 @@ def recalibrate_bgzipped_snp_vcfs
   snpRscriptFile = snpVcf.sub_ext("_plots.R")
   snpLsfOut = snpVcf.sub_ext(".recal.lsfout")
     #-q long -W 700:0 \\
-    ##{$java7Bin} -Xmx20G -jar #{$gatk2Bin} \\
+    ##{$java7_bin} -Xmx20G -jar #{$gatk2_bin} \\
         #-T SelectVariants \\
-        #-R #{$refSeq} \\
+        #-R #{$refseq_broad} \\
         #--variant #{vcf} \\
         #-o #{snpVcf} \\
         #-selectType SNP \\
@@ -1099,9 +1103,9 @@ def recalibrate_bgzipped_snp_vcfs
     -q i2b2_unlimited \\
     -R "rusage[mem=25000]" -M 25000000 \\
     -o #{snpLsfOut} \\
-    "#{$java7Bin} -Xmx20G -jar #{$gatk2Bin} \\
+    "#{$java7_bin} -Xmx20G -jar #{$gatk2_bin} \\
         -T VariantRecalibrator \\
-        -R #{$refSeq} \\
+        -R #{$refseq_broad} \\
         -input #{snpVcf} \\
         -resource:hapmap,known=false,training=true,truth=true,prior=15.0 #{$hapmap} \\
         -resource:omni,known=false,training=true,truth=true,prior=12.0 #{$g1kOmni} \\
@@ -1113,9 +1117,9 @@ def recalibrate_bgzipped_snp_vcfs
         -recalFile #{snpRecalFile} \\
         -tranchesFile #{snpTrancheFile} \\
         -rscriptFile #{snpRscriptFile} && \\
-    #{$java7Bin} -jar #{$gatk2Bin} \\
+    #{$java7_bin} -jar #{$gatk2_bin} \\
         -T ApplyRecalibration \\
-        -R #{$refSeq} \\
+        -R #{$refseq_broad} \\
         -input #{snpVcf} \\
         -mode SNP \\
         --ts_filter_level 99.0 \\
@@ -1142,16 +1146,16 @@ def recalibrate_bgzipped_indel_vcfs
     -q park_unlimited \\
     -R "rusage[mem=25000]" -M 25000000 \\
     -o #{indelLsfOut} "\\
-    #{$java7Bin} -Xmx20G -jar #{$gatk2Bin} \\
+    #{$java7_bin} -Xmx20G -jar #{$gatk2_bin} \\
         -T SelectVariants \\
-        -R #{$refSeq} \\
+        -R #{$refseq_broad} \\
         --variant #{vcf} \\
         -o #{indelVcf} \\
         -selectType INDEL && \\
     tabix -p vcf #{indelVcf} && \\
-    #{$java7Bin} -Xmx20G -jar #{$gatk2Bin} \\
+    #{$java7_bin} -Xmx20G -jar #{$gatk2_bin} \\
         -T VariantRecalibrator \\
-        -R #{$refSeq} \\
+        -R #{$refseq_broad} \\
         -input #{indelVcf} \\
         -resource:mills,known=true,training=true,truth=true,prior=12.0 #{$millsIndel} \\
         -an DP \\
@@ -1164,9 +1168,9 @@ def recalibrate_bgzipped_indel_vcfs
         -recalFile #{indelRecalFile} \\
         -tranchesFile #{indelTrancheFile} \\
         -rscriptFile #{indelRscriptFile} && \\
-    #{$java7Bin} -jar #{$gatk2Bin} \\
+    #{$java7_bin} -jar #{$gatk2_bin} \\
         -T ApplyRecalibration \\
-        -R #{$refSeq} \\
+        -R #{$refseq_broad} \\
         -input #{indelVcf} \\
         -mode INDEL \\
         --ts_filter_level 99.0 \\
@@ -1179,7 +1183,7 @@ def recalibrate_bgzipped_indel_vcfs
 end
 
 def extract_chr22_snp_vcfs
-  vcfFiles = Pathname.glob($vcfDir + "CANCERS" + "*" + "Harvard_GCC_WGS-*-Normal.snp.vqsr.vcf.gz")
+  vcfFiles = Pathname.glob($vcf_dir + "CANCERS" + "*" + "Harvard_GCC_WGS-*-Normal.snp.vqsr.vcf.gz")
   vcfFiles.each do |vcfFile|
     vcf22File = vcfFile.dirname + vcfFile.basename(".gz").sub_ext(".22.vcf.gz")
     lsfout = vcf22File.sub_ext(".gz.lsfout")
@@ -1187,7 +1191,7 @@ def extract_chr22_snp_vcfs
     bsub \\
       -q short -W 12:00 \\ 
       -o #{lsfout} \\
-      java -Xmx5G -jar #{$gatk3Bin} \\
+      java -Xmx5G -jar #{$gatk3_bin} \\
         -R /groups/kucherlapati/GCC/LevelII/hg19Ref/Homo_sapiens_assembly19.fasta \\
         -T SelectVariants \\
         --variant #{vcfFile} \\
@@ -1200,7 +1204,7 @@ end
 
 def split_1k_chr_vcfs_into_even_sized_chunks
   chunkSize = 10000
-  vqsrChrVcfs = Pathname.glob($baseDir + "1000Genomes" + "ALL*.genotypes.vcf").sort
+  vqsrChrVcfs = Pathname.glob($base_dir + "1000Genomes" + "ALL*.genotypes.vcf").sort
   vqsrChrVcfs.each do |vqsrChrVcf|
     chunkDir = vqsrChrVcf.dirname + "chunks"; chunkDir.mkpath
     chunkStem = chunkDir + vqsrChrVcf.basename.sub_ext(".chunk")
@@ -1217,7 +1221,7 @@ def split_1k_chr_vcfs_into_even_sized_chunks
 end
 
 def add_header_to_even_sized_1k_chr_vcf_chunks
-  vqsrChrVcfs = Pathname.glob($baseDir + "1000Genomes" + "ALL*20130502.genotypes.vcf").sort
+  vqsrChrVcfs = Pathname.glob($base_dir + "1000Genomes" + "ALL*20130502.genotypes.vcf").sort
   vqsrChrVcfs.each do |vqsrChrVcf|
     puts vqsrChrVcf
     vcfHeader = vqsrChrVcf.sub_ext(".vcf.header")
@@ -1230,7 +1234,7 @@ def add_header_to_even_sized_1k_chr_vcf_chunks
         end
       end
     end
-    vcfChunks = Pathname.glob($baseDir + "1000Genomes" + "chunks" + "#{vqsrChrVcf.basename('.vcf')}*chunk[0-0][0-9][0-9][0-9][0-9]").sort
+    vcfChunks = Pathname.glob($base_dir + "1000Genomes" + "chunks" + "#{vqsrChrVcf.basename('.vcf')}*chunk[0-0][0-9][0-9][0-9][0-9]").sort
     vcfChunks.each do |vcfChunk|
       headeredVcf = Pathname.new("#{vcfChunk}.headered")
       lsfout = "#{headeredVcf}.gz.lsfout"
@@ -1246,6 +1250,7 @@ def add_header_to_even_sized_1k_chr_vcf_chunks
     end
   end
 end
+
 def run_vep_to_overlap_targetscans
   vepVcfFiles = Pathname.glob("*/#{canType}/snp/chrs/*/*.maf05.vcf.gz").sort
   vepVcfFiles.each do |vepVcfFile|
@@ -1258,9 +1263,9 @@ def run_vep_to_overlap_targetscans
         -g /gcc/germ/eur \\
         -R "rusage[mem=10000]" -M 10000000 \\
         -o #{lsfout} \\
-          #{$java7Bin} -Xmx10g -jar #{$gatk3Bin} \\
+          #{$java7_bin} -Xmx10g -jar #{$gatk3_bin} \\
             -T SelectVariants \\
-            -R #{$refSeq} \\
+            -R #{$refseq_broad} \\
             --variant #{vcfChrFile} \\
             --sample_file #{eurPopFile} \\
             -o #{vcfChrEurFile}
@@ -1273,7 +1278,7 @@ end
 def annotate_targetscan
   vep_bin = Pathname.new "/home/sl279/vep/variant_effect_predictor.pl"
   vep_dir = Pathname.new "/home/sl279/.vep"
-  ucsc_db_dir = $baseDir + "UCSC/database"
+  ucsc_db_dir = $base_dir + "UCSC/database"
   vepVcfFiles = Pathname.glob($canVcfDir + "*/snp/chrs/*/*.maf05.vcf.gz").sort
   vepVcfFiles.each do |vepVcfFile|
     vep_vcf = vepVcfFile.dirname + vepVcfFile.basename(".gz").sub_ext(".vep.vcf.gz")
@@ -1317,13 +1322,141 @@ def extract_targetscan
   end
 end
 
+def run_hc_for_each_sample
+  cancer_bam_dirs = $bam_dir.children.select { |d| d.directory? }.sort
+  cancer_bam_dirs.each do |cancer_bam_dir|
+    cancer_type = cancer_bam_dir.basename.to_s
+    cancer_vcf_dir = $gvcf_dir + cancer_type;cancer_vcf_dir.mkpath
+    cancer_normal_bams = Pathname.glob(cancer_bam_dir + "*.rc.bam")
+    Parallel.each(cancer_normal_bams, :in_threads => 10) do |cancer_normal_bam|
+    #cancer_normal_bams.each do |cancer_normal_bam|
+      out_vcf_file = cancer_vcf_dir + cancer_normal_bam.basename.sub_ext(".bam.g.vcf.gz")
+      lsfout = out_vcf_file.sub_ext(".gz.lsfout")
+      next if lsfout.exist?
+          #-q long -W 700:0 \\
+      cmd = <<-CMD
+        bsub \\
+          -g /germ/gvcf \\
+          -q i2b2_7d \\
+          -R "rusage[mem=5100]" -M 5100000 \\
+          -o #{lsfout} \\
+          #{$java7_bin} -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+            -T HaplotypeCaller \\
+            -R #{$refseq} \\
+            -I #{cancer_normal_bam} \\
+            --emitRefConfidence GVCF \\
+            --dbsnp #{$dbsnp} \\
+            -o #{out_vcf_file}
+      CMD
+      puts cmd
+    end
+  end
+end
 
+def combine_gvcfs_for_each_cancer
+  #cancer_vcf_dirs = $vcf_dir.children.select { |d| d.directory? }.sort
+  #cancer_vcf_dirs.each do |cancer_vcf_dir|
+    #cancer_type = cancer_vcf_dir.basename.to_s
+    cancer_type = "LGG"
+    cancer_gvcf_dir = $gvcf_dir + cancer_type
+    cancer_combined_chr_gvcf_dir = cancer_gvcf_dir + "combined/chrs"; cancer_combined_chr_gvcf_dir.mkpath
+    cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
+    $chrs.each do |chr|
+      cancer_combined_gvcf = cancer_combined_chr_gvcf_dir + "Harvard_GCC-WGS-#{cancer_type}.#{chr}.g.vcf.gz"
+      lsfout = cancer_combined_gvcf.sub_ext(".gz.lsfout")
+      next if lsfout.exist?
+      cmd = <<-CMD
+        bsub \\
+          -g /germ/gvcf \\
+          -q i2b2_7d \\
+          -R "rusage[mem=5100]" -M 5100000 \\
+          -o #{lsfout} \\
+          #{$java7_bin} -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+            -T CombineGVCFs \\
+            -R #{$refseq} \\
+            #{ cancer_gvcf_files.map { |v| "--variant #{v}" }.join(' ') } \\
+            -L #{chr} \\
+            -o #{cancer_combined_gvcf}
+      CMD
+      submit cmd
+    end
+  #end
+end
+
+def combine_chr_gvcfs_for_each_cancer
+  num_cores = 8
+  cancer_type = "BRCA"
+  cancer_gvcf_dir = $gvcf_dir + cancer_type
+  cancer_combined_gvcf_dir = cancer_gvcf_dir + "combined"
+  cancer_combined_chr_gvcf_dir = cancer_combined_gvcf_dir + "chrs"
+  cancer_combined_gvcf = cancer_combined_gvcf_dir + "Harvard_GCC-WGS-#{cancer_type}.g.vcf.gz"
+  lsfout = cancer_combined_gvcf.sub_ext(".gz.lsfout")
+  exit if lsfout.exist?
+  cmd = <<-CMD
+    bsub \\
+      -g /germ/gvcf \\
+      -q i2b2_7d \\
+      -R "rusage[mem=5000]" -M 5000000 \\
+      -n #{num_cores} \\
+      -o #{lsfout} \\
+      #{$java7_bin} -Xmx40G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+        -T CombineVariants \\
+        -R #{$refseq} \\
+        --assumeIdenticalSamples \\
+        -nt #{num_cores} \\
+        #{ $chrs.map { |c| "--variant #{cancer_combined_chr_gvcf_dir}/Harvard_GCC-WGS-#{cancer_type}.#{c}.g.vcf.gz" }.join(' ') } \\
+        -o #{cancer_combined_gvcf}
+  CMD
+  puts cmd
+end
+
+
+def genotype_gvcfs_for_each_cancer
+  num_cores = 4
+  cancer_type = "CRC"
+  cancer_gvcf_dir = $gvcf_dir + cancer_type
+  cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
+  cancer_chr_vcf_dir = $vcf_dir + "CANCER" + cancer_type + "chrs"; cancer_chr_vcf_dir.mkpath
+  $chrs.each do |chr|
+    cancer_chr_vcf = cancer_chr_vcf_dir + "Harvard_GCC-WGS-#{cancer_type}.#{chr}.vcf.gz"
+    lsfout = cancer_chr_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/vcf \\
+        -q mcore -W 700:0 \\
+        -R "rusage[mem=5100]" -M 5100000 \\
+        -n #{num_cores} \\
+        -o #{lsfout} \\
+        #{$java7_bin} -Xmx25G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+          -T GenotypeGVCFs \\
+          -R #{$refseq} \\
+          #{ cancer_gvcf_files.map { |v| "--variant #{v}" }.join(' ') } \\
+          -L #{chr} \\
+          -nt #{num_cores} \\
+          -o #{cancer_chr_vcf}
+    CMD
+    submit cmd
+  end
+end
+
+def genotype_gvcfs_for_pancancer
+end
 
 if __FILE__ == $0
   ## Call SNPs/indels from GCC data
 
+  ## UnifiedGenotyper pipeline
   #call_snps_using_queue_using_old_bams_normal
   #recalibrate_vcf_using_queue
+
+  ## HaplotypeCaller pipeline
+  #run_hc_for_each_sample
+  #combine_gvcfs_for_each_cancer
+  #combine_chr_gvcfs_for_each_cancer
+  genotype_gvcfs_for_each_cancer
+  #genotype_gvcfs_for_pancancer
+
   #split_vcf_by_chromosome
   #filter_chr_vcfs
 

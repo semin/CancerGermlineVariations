@@ -20,7 +20,7 @@ def submit(cmd)
   end
 end
 
-$javaBin        = Pathname.new("/opt/java/jdk7/bin/java")
+$javaBin        = Pathname.new("/opt/java/jdk1.7.0_71/bin/java")
 $gccBamDir1     = Pathname.new("/groups/kucherlapati/GCC/LevelII")
 $homeDir        = Pathname.new("/home/sl279")
 $baseDir        = $homeDir + "BiO/Research/GCC/Germline"
@@ -33,8 +33,8 @@ $canVcfDir      = $vcfDir + "CANCERS"; $canVcfDir.mkpath
 $oriQueueScript = $scriptDir + "RealignGccBams.scala"
 #$oriQueueScript = $scriptDir + "RealignGccCrcBams.scala"
 $installDir     = $homeDir + "BiO/Install"
-$bwaBin         = Pathname.new("/home/sl279/.linuxbrew/bin/bwa")
-$samtoolsBin    = Pathname.new("/home/sl279/BiO/World/usr/local/bin/samtools")
+$bwaBin         = Pathname.new("/home/sl279/gentoo/usr/bin/bwa")
+$samtoolsBin    = Pathname.new("/home/sl279/gentoo/usr/bin/samtools")
 $queueBin       = $installDir + "Sting/dist/Queue.jar"
 $gatkBin        = $installDir + "GATK3/GenomeAnalysisTK.jar"
 $gatkBundleDir  = $installDir + "GATK-bundle" + "2.8" + "b37"
@@ -49,7 +49,8 @@ $g1kOmni        = $gatkBundleDir + "1000G_omni2.5.b37.vcf"
 $chrs           = (1..22).to_a << "X" << "Y" << "MT"
 $chrchrs        = $chrs.map { |c| "chr#{c}" }
 $tmpDir         = Pathname.new("/home/sl279/BiO/Temp"); $tmpDir.mkpath
-$cancerTypes    = %w[BLCA BRCA CRC ESCA HNSC LGG LUAD PRAD SKCM STAD THCA UCEC UVM]
+#$cancerTypes    = %w[BLCA BRCA CRC ESCA HNSC LGG LUAD PRAD SKCM STAD THCA UCEC UVM]
+$cancerTypes    = %w[CESC]
 
 
 def realign_gcc_bams_using_queue
@@ -521,16 +522,17 @@ def run_bwa_mem
       raDataLsfout = sortedBam.sub_ext(".dm.ra.rc.data.lsfout")
       next if raDataLsfout.exist?
       lsfout.delete if lsfout.exist?
+          #-q i2b2_1d \\
       cmd = <<-CMD
         bsub \\
           -g /germ/bwa \\
           -q mcore -W 150:0 \\
-          -R "rusage[mem=11000] span[hosts=1]" \\
-          -M 11000000 \\
+          -R "rusage[mem=5000] span[hosts=1]" \\
+          -M 5000000 \\
           -n #{ncores} \\
           -o #{lsfout} "
           #{$samtoolsBin} sort -@ #{ncores} -n -l 1 -O bam -T #{nameSortedOriNormalBamStem} #{oriNormalBam} | \\
-          bamToFastq \\
+          /home/sl279/gentoo/usr/bin/bamToFastq \\
             -i /dev/stdin \\
             -fq /dev/stdout \\
             -fq2 /dev/stdout | \\
@@ -555,18 +557,19 @@ def remove_failed_bams
 end
 
 def mark_duplicates
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.st.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.st.bam").sort
   bams.each_with_index do |raw_bam, si|
     dedup_bam = raw_bam.sub_ext(".dm.bam")
     dedup_bai = raw_bam.sub_ext(".dm.bai")
     dedup_metrics = dedup_bam.sub_ext(".metrics")
     lsfout = dedup_bam.sub_ext(".bam.lsfout")
-    #next if lsfout.exist?
-    lsfout.delete if lsfout.exist?
+    next if lsfout.exist?
+    #lsfout.delete if lsfout.exist?
+        #-q short -W 12:0 \\
     cmd = <<-CMD
       bsub \\
         -g /germ/md \\
-        -q short -W 12:0 \\
+        -q park_1d \\
         -R "rusage[mem=6000] span[hosts=1]" \\
         -M 6000000 \\
         -o #{lsfout} \\
@@ -584,7 +587,7 @@ def mark_duplicates
 end
 
 def remove_duplicates
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.st.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.st.bam").sort
   bams.each_with_index do |raw_bam, si|
     dedup_bam = raw_bam.sub_ext(".dm.bam")
     dedup_bai = raw_bam.sub_ext(".dm.bai")
@@ -599,7 +602,7 @@ def remove_duplicates
         -o #{lsfout} \\
         /n/data1/hms/dbmi/park/semin/BiO/Install/samtools-0.1.19/samtools rmdup #{raw_bam} #{dedup_bam}
     CMD
-    submit cmd
+    puts cmd
   end
 end
 
@@ -608,8 +611,8 @@ def create_realigner_target
   bams.each_with_index do |bam, si|
     realigner_interval = bam.sub_ext(".ra.intervals")
     lsfout = realigner_interval.sub_ext(".intervals.lsfout")
-    #next if lsfout.exist?
-    lsfout.delete if lsfout.exist?
+    next if lsfout.exist?
+    #lsfout.delete if lsfout.exist?
     cmd = <<-CMD
       bsub \\
         -g /germ/ra \\
@@ -624,7 +627,7 @@ def create_realigner_target
           -known #{$millsIndel} \\
           -allowPotentiallyMisencodedQuals
     CMD
-    submit cmd
+    puts cmd
   end
 end
 
@@ -634,8 +637,8 @@ def realign_indels
     realigner_interval = bam.sub_ext(".ra.intervals")
     realigned_bam = bam.sub_ext(".ra.bam")
     lsfout = realigned_bam.sub_ext(".bam.lsfout")
-    #next if lsfout.exist?
-    lsfout.delete if lsfout.exist?
+    next if lsfout.exist?
+    #lsfout.delete if lsfout.exist?
     cmd = <<-CMD
       bsub \\
         -g /germ/ra \\
@@ -652,7 +655,7 @@ def realign_indels
           -known #{$g1kIndel} \\
           -known #{$millsIndel}
     CMD
-    submit cmd
+    puts cmd
   end
 end
 
@@ -662,10 +665,11 @@ def run_bqsr
     rc_data = bam.sub_ext(".rc.data")
     lsfout = rc_data.sub_ext(".data.lsfout")
     next if lsfout.exist?
+        #-q long -W 150:0 \\
     cmd = <<-CMD
       bsub \\
         -g /germ/rc \\
-        -q i2b2_7d \\
+        -q i2b2_1d \\
         -o #{lsfout} \\
         java -Xmx5G -jar #{$gatkBin} \\
           -T BaseRecalibrator \\
@@ -674,10 +678,33 @@ def run_bqsr
           -R #{$refSeq} \\
           -knownSites #{$dbsnp} \\
           -knownSites #{$g1kIndel} \\
-          -knownSites #{$millsIndel} \\
-          -allowPotentiallyMisencodedQuals
+          -knownSites #{$millsIndel}
     CMD
+          #-allowPotentiallyMisencodedQuals
           #-fixMisencodedQuals
+    puts cmd
+  end
+end
+
+def print_reads
+  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.ra.bam").sort
+  Parallel.each(bams, :in_threads => 5) do |bam|
+    rc_data = bam.sub_ext(".rc.data")
+    rc_bam = bam.sub_ext(".rc.bam")
+    lsfout = rc_bam.sub_ext(".bam.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/rc \\
+        -q long -W 150:0 \\
+        -o #{lsfout} \\
+        java -Xmx5G -jar #{$gatkBin} \\
+          -T PrintReads \\
+          -I #{bam} \\
+          -o #{rc_bam} \\
+          -R #{$refSeq} \\
+          -BQSR #{rc_data}
+    CMD
     submit cmd
   end
 end
@@ -687,10 +714,11 @@ end
 
 #run_bwa_mem
 #mark_duplicates
-#remove_duplicates
+remove_duplicates
 #create_realigner_target
-realign_indels
+#realign_indels
 #run_bqsr
+#print_reads
 
 #refine_gcc_bams
 #realign_gcc_bams
