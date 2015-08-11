@@ -17,8 +17,6 @@ $bam_dir          = $base_dir + "BAM"
 $script_dir       = $base_dir + "Scripts"
 $vcf_dir          = $base_dir + "VCF"
 $gvcf_dir          = $base_dir + "GVCF"
-#$panVcfDir      = $vcf_dir + "PANCAN"; $panVcfDir.mkpath
-#$canVcfDir      = $vcf_dir + "CANCERS"; $canVcfDir.mkpath
 $install_dir      = $home_dir + "BiO/Install"
 $bwa_bin          = $install_dir + "bwa-0.7.5a/bwa"
 $samtools_bin     = $install_dir + "samtools-0.1.19/samtools"
@@ -844,10 +842,10 @@ def call_variants_using_haplotypercaller
     slices = (1..chromLen[chr.to_s]).each_slice(chunkSize)
     slices.each_with_index do |slice, si|
       roi     = "#{chr}:#{slice[0]}-#{slice[-1]}"
-      roiNum  = "#{(si+1).to_s.rjust(slices.size.to_s.size, '0')}_of_#{slices.size}"
-      roiVcf  = outVcfDir + "PanCan12-WGS-Harvard_GCC.#{roiNum}.vcf"
-      next if roiVcf.exist?
-      lsf_out = roiVcf.sub_ext(".vcf.lsfout")
+      roi_num  = "#{(si+1).to_s.rjust(slices.size.to_s.size, '0')}_of_#{slices.size}"
+      roi_vcf  = outVcfDir + "PanCan12-WGS-Harvard_GCC.#{roi_num}.vcf"
+      next if roi_vcf.exist?
+      lsf_out = roi_vcf.sub_ext(".vcf.lsfout")
             #-q park_1d \\
       cmd = <<-CMD
           bsub \\
@@ -860,7 +858,7 @@ def call_variants_using_haplotypercaller
             #{$java7_bin} -Xmx10G -jar #{$gatk2_bin} \\
               -T HaplotypeCaller \\
               -I #{panBamListFile} \\
-              -o #{roiVcf} \\
+              -o #{roi_vcf} \\
               -R #{$refseq_broad} \\
               --dbsnp #{$dbsnp} \\
               -stand_call_conf 10 \\
@@ -969,33 +967,33 @@ def call_variants_using_unifiedgenotyper
             else
               "#{chr}:#{slice[0]}-#{slice[-1]}"
             end
-      roiNum    = "#{(si+1).to_s.rjust(num_slices.to_s.size, '0')}_of_#{num_slices}"
-      roiVcf    = outVcfDir + "PanCan12-WGS-Harvard_GCC.#{chr}.#{roiNum}.vcf.gz"
-      roiVcfIdx = roiVcf.sub_ext(".idx")
-      lsf_out   = roiVcf.sub_ext(".lsfout")
+      roi_num    = "#{(si+1).to_s.rjust(num_slices.to_s.size, '0')}_of_#{num_slices}"
+      roi_vcf    = outVcfDir + "PanCan12-WGS-Harvard_GCC.#{chr}.#{roi_num}.vcf.gz"
+      roi_vcfIdx = roi_vcf.sub_ext(".idx")
+      lsf_out   = roi_vcf.sub_ext(".lsfout")
       if lsf_out.exist?
         lsf_out_txt = lsf_out.read
         if lsf_out_txt.match(/^Exit/)
-          warn "GATK for #{roiVcf} failed, Resubmitting a job..."
+          warn "GATK for #{roi_vcf} failed, Resubmitting a job..."
           lsf_out.delete
-          roiVcf.delete if roiVcf.exist?
-          roiVcfIdx.delete if roiVcfIdx.exist?
+          roi_vcf.delete if roi_vcf.exist?
+          roi_vcfIdx.delete if roi_vcfIdx.exist?
         elsif lsf_out_txt.match(/^Successfully completed/)
-          #warn "GATK for #{roiVcf} done. Skip."
+          #warn "GATK for #{roi_vcf} done. Skip."
           next
         else
           warn "Unknown GATK status in #{lsf_out}. Skip."
           next
           #warn "Unknown GATK status in #{lsf_out}! Resubmitting a job...."
-          #roiVcf.delete if roiVcf.exist?
-          #roiVcfIdx.delete if roiVcfIdx.exist?
+          #roi_vcf.delete if roi_vcf.exist?
+          #roi_vcfIdx.delete if roi_vcfIdx.exist?
         end
       else
         #warn("Cannot find #{lsf_out}! Skip.")
         #next
         warn("Cannot find #{lsf_out}! Resubmitting a job....")
-        roiVcf.delete if roiVcf.exist?
-        roiVcfIdx.delete if roiVcfIdx.exist?
+        roi_vcf.delete if roi_vcf.exist?
+        roi_vcfIdx.delete if roi_vcfIdx.exist?
       end
             #-q short -W 12:0 \\
       cmd = <<-CMD
@@ -1009,7 +1007,7 @@ def call_variants_using_unifiedgenotyper
               -T UnifiedGenotyper \\
               -glm BOTH \\
               -I #{panBamListFile} \\
-              -o #{roiVcf} \\
+              -o #{roi_vcf} \\
               -R #{$refseq_broad} \\
               --dbsnp #{$dbsnp} \\
               -stand_call_conf 10 \\
@@ -1183,7 +1181,7 @@ def recalibrate_bgzipped_indel_vcfs
 end
 
 def extract_chr22_snp_vcfs
-  vcfFiles = Pathname.glob($vcf_dir + "CANCERS" + "*" + "Harvard_GCC_WGS-*-Normal.snp.vqsr.vcf.gz")
+  vcfFiles = Pathname.glob($vcf_dir + "CANCER" + "*" + "Harvard_GCC_WGS-*-Normal.snp.vqsr.vcf.gz")
   vcfFiles.each do |vcfFile|
     vcf22File = vcfFile.dirname + vcfFile.basename(".gz").sub_ext(".22.vcf.gz")
     lsfout = vcf22File.sub_ext(".gz.lsfout")
@@ -1336,11 +1334,11 @@ def run_hc_for_each_sample
           #-q long -W 700:0 \\
       cmd = <<-CMD
         bsub \\
-          -g /germ/gvcf \\
+          -g /germ/hc \\
           -q i2b2_7d \\
-          -R "rusage[mem=5100]" -M 5100000 \\
+          -R "rusage[mem=5500]" -M 5500000 \\
           -o #{lsfout} \\
-          #{$java7_bin} -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+          #{$java7_bin} -XX:+UseSerialGC -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
             -T HaplotypeCaller \\
             -R #{$refseq} \\
             -I #{cancer_normal_bam} \\
@@ -1348,7 +1346,25 @@ def run_hc_for_each_sample
             --dbsnp #{$dbsnp} \\
             -o #{out_vcf_file}
       CMD
-      puts cmd
+      submit cmd
+    end
+  end
+end
+
+def check_redundant_samples
+  cancer_type = "SKCM"
+  cancer_gvcf_dir = $gvcf_dir + cancer_type
+  cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
+  patient_ids = cancer_gvcf_files.map { |f| f.basename.to_s.match(/(TCGA-\S{2}-\S{4})/)[1] }.uniq
+  patient_ids.each do |patient_id|
+    patient_gvcf_files = Pathname.glob(cancer_gvcf_dir + "#{patient_id}*.g.vcf.gz").sort
+    if patient_gvcf_files.size > 1
+      puts "#{patient_gvcf_files.size} files found for #{patient_id}:"
+      puts patient_gvcf_files.join("\n")
+      #puts "#{patient_gvcf_files[0]} selected."
+      #(1...patient_gvcf_files.size).each do |i|
+        #patient_gvcf_files[i].rename(patient_gvcf_files[i].to_s.gsub(".gz", ".gz.discarded"))
+      #end
     end
   end
 end
@@ -1357,7 +1373,7 @@ def combine_gvcfs_for_each_cancer
   #cancer_vcf_dirs = $vcf_dir.children.select { |d| d.directory? }.sort
   #cancer_vcf_dirs.each do |cancer_vcf_dir|
     #cancer_type = cancer_vcf_dir.basename.to_s
-    cancer_type = "LGG"
+    cancer_type = "SKCM"
     cancer_gvcf_dir = $gvcf_dir + cancer_type
     cancer_combined_chr_gvcf_dir = cancer_gvcf_dir + "combined/chrs"; cancer_combined_chr_gvcf_dir.mkpath
     cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
@@ -1369,7 +1385,7 @@ def combine_gvcfs_for_each_cancer
         bsub \\
           -g /germ/gvcf \\
           -q i2b2_7d \\
-          -R "rusage[mem=5100]" -M 5100000 \\
+          -R "rusage[mem=5500]" -M 5500000 \\
           -o #{lsfout} \\
           #{$java7_bin} -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
             -T CombineGVCFs \\
@@ -1396,10 +1412,10 @@ def combine_chr_gvcfs_for_each_cancer
     bsub \\
       -g /germ/gvcf \\
       -q i2b2_7d \\
-      -R "rusage[mem=5000]" -M 5000000 \\
+      -R "rusage[mem=5000] span[hosts=1]" -M 5000000 \\
       -n #{num_cores} \\
       -o #{lsfout} \\
-      #{$java7_bin} -Xmx40G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+      #{$java7_bin} -XX:+UseSerialGC -Xmx35G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
         -T CombineVariants \\
         -R #{$refseq} \\
         --assumeIdenticalSamples \\
@@ -1410,10 +1426,9 @@ def combine_chr_gvcfs_for_each_cancer
   puts cmd
 end
 
-
-def genotype_gvcfs_for_each_cancer
+def genotype_gvcfs_for_each_cancer_chr
   num_cores = 4
-  cancer_type = "CRC"
+  cancer_type = "ESCA"
   cancer_gvcf_dir = $gvcf_dir + cancer_type
   cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
   cancer_chr_vcf_dir = $vcf_dir + "CANCER" + cancer_type + "chrs"; cancer_chr_vcf_dir.mkpath
@@ -1425,12 +1440,13 @@ def genotype_gvcfs_for_each_cancer
       bsub \\
         -g /germ/vcf \\
         -q mcore -W 700:0 \\
-        -R "rusage[mem=5100]" -M 5100000 \\
+        -R "rusage[mem=5100] span[hosts=1]" -M 5100000 \\
         -n #{num_cores} \\
         -o #{lsfout} \\
-        #{$java7_bin} -Xmx25G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+        #{$java7_bin} -Xmx20G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
           -T GenotypeGVCFs \\
           -R #{$refseq} \\
+          --dbsnp #{$dbsnp} \\
           #{ cancer_gvcf_files.map { |v| "--variant #{v}" }.join(' ') } \\
           -L #{chr} \\
           -nt #{num_cores} \\
@@ -1439,6 +1455,99 @@ def genotype_gvcfs_for_each_cancer
     submit cmd
   end
 end
+
+def genotype_gvcfs_for_each_cancer_roi
+  chunkSize = 500000
+  chromLen  = {}
+  $chromLenb37.each_line do |line|
+    chrom, len = line.chomp.split(/\s+/)
+    len = len.to_i
+    next if len == 0
+    chrom = "MT" if chrom == "M"
+    chromLen[chrom] = len
+  end
+  cancer_type = "PRAD"
+  cancer_gvcf_dir = $gvcf_dir + cancer_type
+  cancer_gvcf_files = Pathname.glob(cancer_gvcf_dir + "*.g.vcf.gz").sort
+  $chrs.each do |chr|
+    cancer_chr_vcf_dir = $vcf_dir + "CANCER" + cancer_type + "chrs" + chr.to_s; cancer_chr_vcf_dir.mkpath
+    slices = (1..chromLen[chr.to_s]).each_slice(chunkSize)
+    Parallel.each_with_index(slices, :in_threads => 10) do |slice, si|
+    #slices.each_with_index do |slice, si|
+      roi = "#{chr}:#{slice[0]}-#{slice[-1]}"
+      roi_num = "#{(si+1).to_s.rjust(slices.size.to_s.size, '0')}_of_#{slices.size}"
+      roi_vcf = cancer_chr_vcf_dir + "Harvard_GCC-WGS-#{cancer_type}.#{chr}.#{roi_num}.vcf.gz"
+      lsfout = roi_vcf.sub_ext(".gz.lsfout")
+      next if lsfout.exist?
+      cmd = <<-CMD
+        bsub \\
+          -g /germ/gg \\
+          -q short -W 12:0 \\
+          -R "rusage[mem=5500]" -M 5500000 \\
+          -o #{lsfout} \\
+          #{$java7_bin} -XX:+UseSerialGC -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+            -T GenotypeGVCFs \\
+            -R #{$refseq} \\
+            --dbsnp #{$dbsnp} \\
+            #{ cancer_gvcf_files.map { |v| "--variant #{v}" }.join(' ') } \\
+            -L #{roi} \\
+            -o #{roi_vcf}
+      CMD
+      submit cmd
+    end
+  end
+end
+
+def combine_roi_vcfs_for_each_cancer
+  cancer_type = "SKCM"
+  cancer_vcf_dir = $vcf_dir + "CANCER" + cancer_type
+  cancer_chr_vcf_dir = cancer_vcf_dir + "chrs"
+  $chrs.each do |chr|
+    cancer_ind_chr_vcf_dir = cancer_chr_vcf_dir + chr.to_s
+    roi_vcfs = Pathname.glob(cancer_ind_chr_vcf_dir + "*.vcf.gz").sort
+    cancer_ind_chr_vcf = cancer_chr_vcf_dir + "Harvard_GCC-WGS-#{cancer_type}.#{chr}.vcf.gz"
+    lsfout = cancer_ind_chr_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /germ/cv \\
+        -q short -W 12:0 \\
+        -R "rusage[mem=5500]" -M 5500000 \\
+        -o #{lsfout} \\
+        #{$java7_bin} -XX:+UseSerialGC -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+          -T CombineVariants \\
+          -R #{$refseq} \\
+          --assumeIdenticalSamples \\
+          #{ roi_vcfs.map { |v| "--variant #{v}" }.join(' ') } \\
+          -o #{cancer_ind_chr_vcf}
+    CMD
+    submit cmd
+  end
+end
+
+def combine_chr_vcfs_for_each_cancer
+  cancer_type = "SKCM"
+  cancer_vcf_dir = $vcf_dir + "CANCER" + cancer_type
+  cancer_chr_vcf_dir = cancer_vcf_dir + "chrs"
+  cancer_vcf = cancer_vcf_dir + "Harvard_GCC-WGS-#{cancer_type}.vcf.gz"
+  lsfout = cancer_vcf.sub_ext(".gz.lsfout")
+  exit if lsfout.exist?
+  cmd = <<-CMD
+    bsub \\
+      -g /germ/cv \\
+      -q short -W 12:0 \\
+      -R "rusage[mem=5500]" -M 5500000 \\
+      -o #{lsfout} \\
+      #{$java7_bin} -XX:+UseSerialGC -Xmx5G -Djava.io.tmpdir=#{$tmp_dir} -jar #{$gatk3_bin} \\
+        -T CombineVariants \\
+        -R #{$refseq} \\
+        --assumeIdenticalSamples \\
+        #{ $chrs.map { |c| "--variant #{cancer_chr_vcf_dir}/Harvard_GCC-WGS-#{cancer_type}.#{c}.vcf.gz" }.join(' ') } \\
+        -o #{cancer_vcf}
+  CMD
+  submit cmd
+end
+
 
 def genotype_gvcfs_for_pancancer
 end
@@ -1452,9 +1561,15 @@ if __FILE__ == $0
 
   ## HaplotypeCaller pipeline
   #run_hc_for_each_sample
+  #check_redundant_samples
   #combine_gvcfs_for_each_cancer
   #combine_chr_gvcfs_for_each_cancer
-  genotype_gvcfs_for_each_cancer
+
+  #genotype_gvcfs_for_each_cancer_chr
+  #genotype_gvcfs_for_each_cancer_roi
+  #combine_roi_vcfs_for_each_cancer
+  #combine_chr_vcfs_for_each_cancer
+
   #genotype_gvcfs_for_pancancer
 
   #split_vcf_by_chromosome

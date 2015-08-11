@@ -28,8 +28,8 @@ $newBamDir      = Pathname.new("/n/data1/hms/dbmi/park/semin/BiO/Research/Germli
 $fastqDir       = $baseDir + "FASTQ"
 $scriptDir      = $baseDir + "Scripts"
 $vcfDir         = $baseDir + "VCF"
-$panVcfDir      = $vcfDir + "PANCAN"; $panVcfDir.mkpath
-$canVcfDir      = $vcfDir + "CANCERS"; $canVcfDir.mkpath
+#$panVcfDir      = $vcfDir + "PANCAN"; $panVcfDir.mkpath
+#$canVcfDir      = $vcfDir + "CANCER"; $canVcfDir.mkpath
 $oriQueueScript = $scriptDir + "RealignGccBams.scala"
 #$oriQueueScript = $scriptDir + "RealignGccCrcBams.scala"
 $installDir     = $homeDir + "BiO/Install"
@@ -607,18 +607,19 @@ def remove_duplicates
 end
 
 def create_realigner_target
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.dm.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.dm.bam").sort
   bams.each_with_index do |bam, si|
     realigner_interval = bam.sub_ext(".ra.intervals")
     lsfout = realigner_interval.sub_ext(".intervals.lsfout")
     next if lsfout.exist?
-    #lsfout.delete if lsfout.exist?
     cmd = <<-CMD
       bsub \\
         -g /germ/ra \\
-        -q short -W 12:0 \\
+        -R "rusage[mem=5100] span[hosts=1]" \\
+        -M 5100000 \\
+        -q i2b2_1d \\
         -o #{lsfout} \\
-        java -Xmx5G -jar #{$gatkBin} \\
+        #{$javaBin} -Xmx5G -jar #{$gatkBin} \\
           -T RealignerTargetCreator \\
           -I #{bam} \\
           -o #{realigner_interval} \\
@@ -632,7 +633,7 @@ def create_realigner_target
 end
 
 def realign_indels
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.dm.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.dm.bam").sort
   bams.each_with_index do |bam, si|
     realigner_interval = bam.sub_ext(".ra.intervals")
     realigned_bam = bam.sub_ext(".ra.bam")
@@ -643,8 +644,10 @@ def realign_indels
       bsub \\
         -g /germ/ra \\
         -q i2b2_1d \\
+        -R "rusage[mem=5500] span[hosts=1]" \\
+        -M 5500000 \\
         -o #{lsfout} \\
-        java -Xmx5G -jar #{$gatkBin} \\
+        #{$javaBin} -Xmx5G -jar #{$gatkBin} \\
           -T IndelRealigner \\
           -targetIntervals #{realigner_interval} \\
           -I #{bam} \\
@@ -655,39 +658,38 @@ def realign_indels
           -known #{$g1kIndel} \\
           -known #{$millsIndel}
     CMD
-    puts cmd
+    submit cmd
   end
 end
 
 def run_bqsr
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.ra.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.ra.bam").sort
   Parallel.each(bams, :in_threads => 5) do |bam|
     rc_data = bam.sub_ext(".rc.data")
     lsfout = rc_data.sub_ext(".data.lsfout")
     next if lsfout.exist?
-        #-q long -W 150:0 \\
     cmd = <<-CMD
       bsub \\
         -g /germ/rc \\
         -q i2b2_1d \\
         -o #{lsfout} \\
-        java -Xmx5G -jar #{$gatkBin} \\
+        #{$javaBin} -Xmx5G -jar #{$gatkBin} \\
           -T BaseRecalibrator \\
           -I #{bam} \\
           -o #{rc_data} \\
           -R #{$refSeq} \\
           -knownSites #{$dbsnp} \\
           -knownSites #{$g1kIndel} \\
-          -knownSites #{$millsIndel}
+          -knownSites #{$millsIndel} \\
+          -allowPotentiallyMisencodedQuals
     CMD
-          #-allowPotentiallyMisencodedQuals
           #-fixMisencodedQuals
-    puts cmd
+    submit cmd
   end
 end
 
 def print_reads
-  bams = Pathname.glob($baseDir + "BAM" + "*" + "*.ra.bam").sort
+  bams = Pathname.glob($baseDir + "BAM" + "CESC" + "*.ra.bam").sort
   Parallel.each(bams, :in_threads => 5) do |bam|
     rc_data = bam.sub_ext(".rc.data")
     rc_bam = bam.sub_ext(".rc.bam")
@@ -696,9 +698,9 @@ def print_reads
     cmd = <<-CMD
       bsub \\
         -g /germ/rc \\
-        -q long -W 150:0 \\
+        -q i2b2_1d \\
         -o #{lsfout} \\
-        java -Xmx5G -jar #{$gatkBin} \\
+        #{$javaBin} -Xmx5G -jar #{$gatkBin} \\
           -T PrintReads \\
           -I #{bam} \\
           -o #{rc_bam} \\
@@ -714,7 +716,7 @@ end
 
 #run_bwa_mem
 #mark_duplicates
-remove_duplicates
+#remove_duplicates
 #create_realigner_target
 #realign_indels
 #run_bqsr
