@@ -854,10 +854,10 @@ def annotate_pancan_chr_vcfs_with_vep
   insituhic_dir = $base_dir + "HiC/GSE63525/suppl"
   roadmap_dir = $base_dir + "Roadmap"
   mtab2323_dir = $base_dir + "E-MTAB-2323"
-  #snp_vcfs = Pathname.glob($vcf_dir + "PANCAN/snp/chrs/*/*.cadd.vcf.gz").sort
-  indel_vcfs = Pathname.glob($vcf_dir + "PANCAN/indel/chrs/*/*.esp.vcf.gz").sort
+  snp_vcfs = Pathname.glob($vcf_dir + "PANCAN/snp/chrs/*/*.cadd.vcf.gz").sort
+  #indel_vcfs = Pathname.glob($vcf_dir + "PANCAN/indel/chrs/*/*.esp.vcf.gz").sort
   #vcfs = [snp_vcfs, indel_vcfs].flatten
-  vcfs = [indel_vcfs].flatten
+  vcfs = [snp_vcfs].flatten
   Parallel.each(vcfs, :in_threads => 10) do |vcf|
   #vcfs.each do |vcf|
     vep_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".vep.vcf.gz")
@@ -868,7 +868,7 @@ def annotate_pancan_chr_vcfs_with_vep
       -g /germ/vep \\
       -q mcore -W 700:0 \\
       -n #{num_cores} \\
-      -R "rusage[mem=10000] span[hosts=1]" -M 10000000 \\
+      -R "rusage[mem=5000] span[hosts=1]" -M 5000000 \\
       -o #{lsfout} \\
       "perl #{vep_bin} \\
         --fork #{num_cores} \\
@@ -1103,6 +1103,40 @@ def extract_eur_cancer_chr_vcfs
   end
 end
 
+def extract_eur_pancan_chr_vcfs
+  eurPopFile = $vcf_dir + "PANCAN" + "EUR_Samples.txt"
+  eurPopFile.open('w') do |file|
+    popFile = $base_dir + "Table/Continental_Ancestry_Prediction_For_TCGA_PANCAN_Individuals_With_Shared_SNPs.txt"
+    popFile.readlines[1..-1].each do |line|
+      cols = line.chomp.split("\t")
+      pop = cols[-1]
+      sampleId = cols[2].gsub(".", "-")
+      if pop == "EUR"
+        file.puts sampleId
+      end
+    end
+  end
+  vcfChrFiles = Pathname.glob("#{$vcf_dir}/PANCAN/{snp,indel}/chrs/*/*.vep.vcf.gz").sort
+  vcfChrFiles.each do |vcfChrFile|
+    vcfChrEurFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".eur.vcf.gz")
+    lsfout = vcfChrEurFile.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+        bsub \\
+          -g /germ/eur \\
+          -q short -W 12:0 \\
+          -o #{lsfout} \\
+    #{$java7_bin} -XX:+UseSerialGC -Xmx5G -jar #{$gatk3_bin} \\
+            -T SelectVariants \\
+            -R #{$refseq} \\
+            --variant #{vcfChrFile} \\
+            --sample_file #{eurPopFile} \\
+            -o #{vcfChrEurFile}
+    CMD
+    submit cmd
+  end
+end
+
 def extract_afs_from_eur_cancer_chr_vcfs
   vcfChrEurFiles = Pathname.glob("#{$vcf_dir}/*/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
   Parallel.each(vcfChrEurFiles, :in_threads => 10) do |vcfChrEurFile|
@@ -1129,6 +1163,35 @@ def extract_afs_from_eur_cancer_chr_vcfs
     end
     system "bgzip -f #{chrEurAfFile}; tabix -s 1 -b 2 -e 2 #{chrEurAfFile}.gz"
     system "zcat #{vcfChrFile} | vcf-annotate -a #{chrEurAfFile}.gz -c CHROM,FROM,REF,ALT,INFO/EUR_AF -d key=INFO,ID=EUR_AF,Number=A,Type=Float,Description=\"EUR Allele Frequency, for each ALT allele, in the same order as listed\" | bgzip > #{vcfChrEurAfFile} && tabix -p vcf #{vcfChrEurAfFile}"
+  end
+end
+
+def extract_afs_from_eur_pancan_chr_vcfs
+  vcfChrEurFiles = Pathname.glob("#{$vcf_dir}/PANCAN/{snp,indel}/chrs/*/*.vep.eur.vcf.gz").sort
+  Parallel.each(vcfChrEurFiles, :in_threads => 1) do |vcfChrEurFile|
+    puts vcfChrEurFile
+    vcfChrFile = Pathname.new(vcfChrEurFile.to_s.gsub("eur.", ""))
+    chrEurAfFile = vcfChrEurFile.dirname + vcfChrEurFile.basename(".gz").sub_ext(".afs.txt")
+    vcfChrEurAfFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".eur_af.vcf.gz")
+    lsfout = vcfChrEurFile.sub_ext(".txt.gz.lsfout")
+    chrEurAfFile.open('w') do |file|
+      file.puts %w[#CHROM POS REF ALT TCGA_EUR_AF].join("\t")
+      `zcat #{vcfChrEurFile}`.split("\n").each do |line|
+          next if line.start_with?("#")
+          cols = line.chomp.split("\t")
+          chr = cols[0]
+          pos = cols[1]
+          ref = cols[3]
+          alts = cols[4].split(",")
+          info = cols[7]
+          afs = info.match(/;AF=(\S+?);/)[1].split(",")
+          alts.each_with_index do |alt, i|
+            file.puts [chr, pos, ref, alt, afs[i]].join("\t")
+          end
+        end
+    end
+    system "bgzip -f #{chrEurAfFile}; tabix -s 1 -b 2 -e 2 #{chrEurAfFile}.gz"
+    system "zcat #{vcfChrFile} | vcf-annotate -a #{chrEurAfFile}.gz -c CHROM,FROM,REF,ALT,INFO/TCGA_EUR_AF -d key=INFO,ID=TCGA_EUR_AF,Number=A,Type=Float,Description=\"TCGA EUR Allele Frequency, for each ALT allele, in the same order as listed\" | bgzip > #{vcfChrEurAfFile} && tabix -p vcf #{vcfChrEurAfFile}"
   end
 end
 
@@ -2497,6 +2560,9 @@ if __FILE__ == $0
   #annotate_cancer_chr_vcfs_with_esp6500si_afs
   #annotate_cancer_snp_chr_vcfs_with_cadd_scores
   #annotate_cancer_chr_vcfs_with_vep
+
+  # Run R scripts in ./1000Genomes folder to predict ethinicity of samples
+
   #extract_eur_cancer_chr_vcfs
   #extract_afs_from_eur_cancer_chr_vcfs
 
@@ -2518,8 +2584,11 @@ if __FILE__ == $0
   #annotate_pancan_chr_vcfs_with_dbsnp_rsids
   #annotate_pancan_chr_vcfs_with_1000genomes_afs
   #annotate_pancan_chr_vcfs_with_esp6500si_afs
-  annotate_pancan_snp_chr_vcfs_with_cadd_scores
+  #annotate_pancan_snp_chr_vcfs_with_cadd_scores
   #annotate_pancan_chr_vcfs_with_vep
+
+  # Run R scripts in ./1000Genomes folder to predict ethinicity of samples
+
   #extract_eur_pancan_chr_vcfs
   #extract_afs_from_eur_pancan_chr_vcfs
 
