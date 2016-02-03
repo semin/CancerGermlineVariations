@@ -390,7 +390,7 @@ def annotate_cancer_chr_vcfs_with_dbsnp_rsids
   cancer_type = "BLCA"
   cancer_vcf_dir = $vcf_dir + "CANCER" + cancer_type
   #dbsnp = $dbsnp_dir + "human_9606_b142_GRCh37p13/VCF/All.rsid.exp.vcf.gz"
-  dbsnp = $dbsnp_dir + "human_9606_b144_GRCh37p13/VCF/00-All.rsid.exp.vcf.gz"
+  dbsnp = $dbsnp_dir + "human_9606_b146_GRCh37p13/VCF/00-All.rsid.exp.vcf.gz"
   vcfs = Pathname.glob("#{cancer_vcf_dir}/{snp,indel}/chrs/*/*.maf05.vcf.gz").sort
   Parallel.each_with_index(vcfs, :in_threads => 4) do |vcf, vi|
     dbsnp_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".rsid.vcf.gz")
@@ -400,7 +400,7 @@ def annotate_cancer_chr_vcfs_with_dbsnp_rsids
       -g /germ/rsid \\
       -q i2b2_12h \\
       -o #{lsfout} \\
-      "zcat #{vcf} | vcf-annotate -a #{dbsnp} -d key=INFO,ID=DBSNP,Number=A,Type=String,Description=\\"dbSNP144 RSID\\" -c CHROM,POS,INFO/DBSNP,REF,ALT | bgzip -c > #{dbsnp_vcf} && tabix -p vcf #{dbsnp_vcf}"
+      "zcat #{vcf} | vcf-annotate -a #{dbsnp} -d key=INFO,ID=DBSNP,Number=A,Type=String,Description=\\"dbSNP146 RSID\\" -c CHROM,POS,INFO/DBSNP,REF,ALT | bgzip -c > #{dbsnp_vcf} && tabix -p vcf #{dbsnp_vcf}"
     CMD
     submit cmd
   end
@@ -408,7 +408,7 @@ end
 
 def annotate_pancan_chr_vcfs_with_dbsnp_rsids
   pancan_vcf_dir = $vcf_dir + "PANCAN"
-  dbsnp = $dbsnp_dir + "human_9606_b144_GRCh37p13/VCF/00-All.rsid.exp.vcf.gz"
+  dbsnp = $dbsnp_dir + "human_9606_b146_GRCh37p13/VCF/00-All.rsid.exp.vcf.gz"
   vcfs = Pathname.glob("#{pancan_vcf_dir}/{snp,indel}/chrs/*/*.maf05.vcf.gz").sort
   Parallel.each_with_index(vcfs, :in_threads => 4) do |vcf, vi|
     dbsnp_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".rsid.vcf.gz")
@@ -418,7 +418,7 @@ def annotate_pancan_chr_vcfs_with_dbsnp_rsids
       -g /germ/rsid \\
       -q short -W 12:0 \\
       -o #{lsfout} \\
-      "zcat #{vcf} | vcf-annotate -a #{dbsnp} -d key=INFO,ID=DBSNP,Number=A,Type=String,Description=\\"dbSNP144 RSID\\" -c CHROM,POS,INFO/DBSNP,REF,ALT | bgzip -c > #{dbsnp_vcf} && tabix -p vcf #{dbsnp_vcf}"
+      "zcat #{vcf} | vcf-annotate -a #{dbsnp} -d key=INFO,ID=DBSNP,Number=A,Type=String,Description=\\"dbSNP146 RSID\\" -c CHROM,POS,INFO/DBSNP,REF,ALT | bgzip -c > #{dbsnp_vcf} && tabix -p vcf #{dbsnp_vcf}"
     CMD
     submit cmd
   end
@@ -466,7 +466,7 @@ end
 
 def annotate_pancan_chr_vcfs_with_1000genomes_afs
   pancan_vcf_dir = $vcf_dir + "PANCAN"
-  tgaf = $base_dir + "1000Genomes" + "ALL.wgs.phase3_shapeit2_mvncall_integrated_v5a.20130502.sites.afs.exp.tsv.gz"
+  tgaf = $base_dir + "1000Genomes" + "ALL.wgs.phase3_shapeit2_mvncall_integrated_v5b.20130502.sites.afs.exp.tsv.gz"
   vcfs = Pathname.glob("#{pancan_vcf_dir}/{snp,indel}/chrs/*/*.maf05.rsid.vcf.gz").sort
   Parallel.each_with_index(vcfs, :in_threads => 4) do |vcf, vi|
     tg_all_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".tg_all.vcf.gz")
@@ -477,6 +477,7 @@ def annotate_pancan_chr_vcfs_with_1000genomes_afs
     tg_sas_vcf = tg_all_vcf.dirname + tg_amr_vcf.basename(".gz").sub_ext(".tg_sas.vcf.gz")
     final_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".tg.vcf.gz")
     lsfout = final_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
     cmd = <<-CMD
     bsub \\
       -g /germ/tg \\
@@ -514,6 +515,7 @@ def annotate_cancer_chr_vcfs_with_esp6500si_afs
     esp_aa_vcf = esp_ta_vcf.dirname + esp_ta_vcf.basename(".gz").sub_ext(".esp_aa.vcf.gz")
     final_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".esp.vcf.gz")
     lsfout = final_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
     cmd = <<-CMD
     bsub \\
       -g /gcc/germ/esp \\
@@ -544,6 +546,7 @@ def annotate_pancan_chr_vcfs_with_esp6500si_afs
     esp_aa_vcf = esp_ta_vcf.dirname + esp_ta_vcf.basename(".gz").sub_ext(".esp_aa.vcf.gz")
     final_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".esp.vcf.gz")
     lsfout = final_vcf.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
     cmd = <<-CMD
     bsub \\
       -g /germ/esp \\
@@ -843,7 +846,7 @@ def annotate_cancer_chr_vcfs_with_vep
 end
 
 def annotate_pancan_chr_vcfs_with_vep
-  num_cores = 4
+  num_cores = 8
   vep_bin = Pathname.new "/home/sl279/vep/variant_effect_predictor.pl"
   vep_dir = Pathname.new "/home/sl279/.vep"
   encode_dcc_dir = $base_dir + "UCSC/encodeDCC"
@@ -855,9 +858,9 @@ def annotate_pancan_chr_vcfs_with_vep
   roadmap_dir = $base_dir + "Roadmap"
   mtab2323_dir = $base_dir + "E-MTAB-2323"
   snp_vcfs = Pathname.glob($vcf_dir + "PANCAN/snp/chrs/*/*.cadd.vcf.gz").sort
-  #indel_vcfs = Pathname.glob($vcf_dir + "PANCAN/indel/chrs/*/*.esp.vcf.gz").sort
-  #vcfs = [snp_vcfs, indel_vcfs].flatten
-  vcfs = [snp_vcfs].flatten
+  indel_vcfs = Pathname.glob($vcf_dir + "PANCAN/indel/chrs/*/*.esp.vcf.gz").sort
+  vcfs = [snp_vcfs, indel_vcfs].flatten
+  #vcfs = [snp_vcfs].flatten
   Parallel.each(vcfs, :in_threads => 10) do |vcf|
   #vcfs.each do |vcf|
     vep_vcf = vcf.dirname + vcf.basename(".gz").sub_ext(".vep.vcf.gz")
@@ -866,7 +869,7 @@ def annotate_pancan_chr_vcfs_with_vep
     cmd = <<-CMD
     bsub \\
       -g /germ/vep \\
-      -q mcore -W 700:0 \\
+      -q i2b2_7d \\
       -n #{num_cores} \\
       -R "rusage[mem=5000] span[hosts=1]" -M 5000000 \\
       -o #{lsfout} \\
@@ -1174,6 +1177,7 @@ def extract_afs_from_eur_pancan_chr_vcfs
     chrEurAfFile = vcfChrEurFile.dirname + vcfChrEurFile.basename(".gz").sub_ext(".afs.txt")
     vcfChrEurAfFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".eur_af.vcf.gz")
     lsfout = vcfChrEurFile.sub_ext(".txt.gz.lsfout")
+    next if lsfout.exist?
     chrEurAfFile.open('w') do |file|
       file.puts %w[#CHROM POS REF ALT TCGA_EUR_AF].join("\t")
       `zcat #{vcfChrEurFile}`.split("\n").each do |line|
