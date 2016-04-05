@@ -22,7 +22,7 @@ germDir = file.path("/groups/kucherlapati/GCC/Germline")
 ## Read VCFs and create genotypes file for prioritization
 ##
 vcfLst = list()
-vcfFiles = mixedsort(Sys.glob(file.path(germDir, "VCF/PANCAN/*/chrs/*/*eur_af.vcf.gz")))
+vcfFiles = mixedsort(Sys.glob(file.path(germDir, "VCF/PANCAN/*/chrs/*/*dedup_af.vcf.gz")))
 
 for (vcfFile in vcfFiles) {
     cat(sprintf("Reading %s ...\n", vcfFile))
@@ -35,28 +35,28 @@ for (vcfFile in vcfFiles) {
                       elementLengths(info(vcf)$genomicSuperDups) == 0 &
                       elementLengths(info(vcf)$simpleRepeat) == 0 &
                       elementLengths(info(vcf)$microsat) == 0]
-    vcfFileterdFile = gsub("eur_af", "eur_af.biallelic.nodups", vcfFile, fixed = T)
+    vcfFileterdFile = gsub("dedup_af", "dedup_af.biallelic.nodups", vcfFile, fixed = T)
     vcfFileterdFile = gsub(".gz", "", vcfFileterdFile, fixed = T)
     cat(sprintf("Writing %s ...\n", vcfFileterdFile))
     writeVcf(vcfFiltered, vcfFileterdFile, index = T)
 
-    ## Rare
-    #rareVcf = vcfFiltered[unlist(!is.na(info(vcfFiltered)$TG_ALL_AF) &
-                                 #info(vcfFiltered)$TG_ALL_AF < 0.01 &
-                                 #info(vcfFiltered)$TG_EAS_AF < 0.01 &
-                                 #info(vcfFiltered)$TG_EUR_AF < 0.01 &
-                                 #info(vcfFiltered)$TG_AFR_AF < 0.01 &
-                                 #info(vcfFiltered)$TG_AMR_AF < 0.01 &
-                                 #info(vcfFiltered)$TG_SAS_AF < 0.01 &
-                                 #(is.na(info(vcfFiltered)$TA_AF) | info(vcfFiltered)$TA_AF < 0.01) &
-                                 #(is.na(info(vcfFiltered)$EA_AF) | info(vcfFiltered)$EA_AF < 0.01) &
-                                 #(is.na(info(vcfFiltered)$AA_AF) | info(vcfFiltered)$AA_AF < 0.01) &
-                                 #(info(vcfFiltered)$EUR_AF >= 0.05 & info(vcfFiltered)$EUR_AF <= 0.95)
-                                 #)]
+    # Rare
+    rareVcf = vcfFiltered[unlist(!is.na(info(vcfFiltered)$TG_ALL_AF) &
+                                 info(vcfFiltered)$TG_ALL_AF < 0.01 &
+                                 info(vcfFiltered)$TG_EAS_AF < 0.01 &
+                                 info(vcfFiltered)$TG_EUR_AF < 0.01 &
+                                 info(vcfFiltered)$TG_AFR_AF < 0.01 &
+                                 info(vcfFiltered)$TG_AMR_AF < 0.01 &
+                                 info(vcfFiltered)$TG_SAS_AF < 0.01 &
+                                 (is.na(info(vcfFiltered)$TA_AF) | info(vcfFiltered)$TA_AF < 0.01) &
+                                 (is.na(info(vcfFiltered)$EA_AF) | info(vcfFiltered)$EA_AF < 0.01) &
+                                 (is.na(info(vcfFiltered)$AA_AF) | info(vcfFiltered)$AA_AF < 0.01) &
+                                 (info(vcfFiltered)$TCGA_EUR_DEDUP_AF >= 0.05 & info(vcfFiltered)$TCGA_EUR_DEDUP_AF <= 0.95)
+                                 )]
 
-    #rareVcfFile = gsub("nodups", "nodups.rare", vcfFileterdFile, fixed = T)
-    #cat(sprintf("Writing %s ...\n", rareVcfFile))
-    #writeVcf(rareVcf, rareVcfFile, index = T)
+    rareVcfFile = gsub("nodups", "nodups.rare", vcfFileterdFile, fixed = T)
+    cat(sprintf("Writing %s ...\n", rareVcfFile))
+    writeVcf(rareVcf, rareVcfFile, index = T)
 
     ## Novel
     #novelVcf = vcfFiltered[unlist(is.na(info(vcfFiltered)$TG_ALL_AF) &

@@ -1129,7 +1129,7 @@ def extract_eur_pancan_chr_vcfs
           -g /germ/eur \\
           -q short -W 12:0 \\
           -o #{lsfout} \\
-    #{$java7_bin} -XX:+UseSerialGC -Xmx5G -jar #{$gatk3_bin} \\
+          #{$java7_bin} -XX:+UseSerialGC -Xmx5G -jar #{$gatk3_bin} \\
             -T SelectVariants \\
             -R #{$refseq} \\
             --variant #{vcfChrFile} \\
@@ -1196,6 +1196,71 @@ def extract_afs_from_eur_pancan_chr_vcfs
     end
     system "bgzip -f #{chrEurAfFile}; tabix -s 1 -b 2 -e 2 #{chrEurAfFile}.gz"
     system "zcat #{vcfChrFile} | vcf-annotate -a #{chrEurAfFile}.gz -c CHROM,FROM,REF,ALT,INFO/TCGA_EUR_AF -d key=INFO,ID=TCGA_EUR_AF,Number=A,Type=Float,Description=\"TCGA EUR Allele Frequency, for each ALT allele, in the same order as listed\" | bgzip > #{vcfChrEurAfFile} && tabix -p vcf #{vcfChrEurAfFile}"
+  end
+end
+
+def remove_duplicate_patients_from_pancan_chr_vcfs
+  dupSamples = []
+  dupFile = $base_dir + "Table/Duplicate_Samples.txt"
+  dupFile.each_line do |line|
+    sampleId1, sampleId2 = line.chomp.split("\t")
+    dupSamples << sampleId2
+  end
+  vcfChrFiles = Pathname.glob("#{$vcf_dir}/PANCAN/{snp,indel}/chrs/*/*.eur_af.vcf.gz").sort
+  vcfChrFiles.each do |vcfChrFile|
+    vcfChrDedupFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".dedup.vcf.gz")
+    lsfout = vcfChrDedupFile.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+        bsub \\
+          -g /germ/dedup \\
+          -q i2b2_1d \\
+          -R "rusage[mem=40000]" -M 40000000 \\
+          -o #{lsfout} \\
+          "vcfremovesamples #{vcfChrFile} #{dupSamples.join(' ')} | bgzip > #{vcfChrDedupFile} && tabix -p vcf #{vcfChrDedupFile}"
+    CMD
+    submit cmd
+  end
+end
+
+def extract_afs_from_dedup_pancan_chr_vcfs
+  vcfChrDedupFiles = Pathname.glob("#{$vcf_dir}/PANCAN/{snp,indel}/chrs/*/*.dedup.vcf.gz").sort
+  Parallel.each(vcfChrDedupFiles, :in_threads => 1) do |vcfChrDedupFile|
+    puts vcfChrDedupFile
+    vcfChrFile = Pathname.new(vcfChrDedupFile.to_s.gsub("dedup.", ""))
+    chrDedupAfFile = vcfChrDedupFile.dirname + vcfChrDedupFile.basename(".gz").sub_ext(".afs.txt.gz")
+    vcfChrDedupAfFile = vcfChrFile.dirname + vcfChrFile.basename(".gz").sub_ext(".dedup_af.vcf.gz")
+    lsfout = vcfChrDedupAfFile.sub_ext(".gz.lsfout")
+    next if lsfout.exist?
+    cmd = <<-CMD
+      bsub \\
+        -g /gcc/germ/afs \\
+        -q i2b2_12h -W 12:0 \\
+        -R "rusage[mem=40000]" -M 40000000 \\
+        -o #{lsfout} \\
+        "zcat #{vcfChrDedupFile} | ruby /groups/kucherlapati/GCC/Germline/Scripts/extractAfsFromVcf.rb | bgzip -c > #{chrDedupAfFile};
+        tabix -s 1 -b 2 -e 2 #{chrDedupAfFile};
+        zcat #{vcfChrFile} | vcf-annotate -a #{chrDedupAfFile} -c CHROM,FROM,REF,ALT,INFO/TCGA_EUR_DEDUP_AF -d key=INFO,ID=TCGA_EUR_DEDUP_AF,Number=A,Type=Float,Description=\\"TCGA EUR Dedupped Allele Frequency, for each ALT allele, in the same order as listed\\" | bgzip > #{vcfChrDedupAfFile} && tabix -p vcf #{vcfChrDedupAfFile}"
+    CMD
+    submit cmd
+    #chrDedupAfFile.open('w') do |file|
+      #file.puts %w[#CHROM POS REF ALT TCGA_EUR_DEDUP_AF].join("\t")
+      #`zcat #{vcfChrDedupFile}`.split("\n").each do |line|
+          #next if line.start_with?("#")
+          #cols = line.chomp.split("\t")
+          #chr = cols[0]
+          #pos = cols[1]
+          #ref = cols[3]
+          #alts = cols[4].split(",")
+          #info = cols[7]
+          #afs = info.match(/;AF=(\S+?);/)[1].split(",")
+          #alts.each_with_index do |alt, i|
+            #file.puts [chr, pos, ref, alt, afs[i]].join("\t")
+          #end
+        #end
+    #end
+    #system "bgzip -f #{chrDedupAfFile}; tabix -s 1 -b 2 -e 2 #{chrDedupAfFile}.gz"
+    #system "zcat #{vcfChrFile} | vcf-annotate -a #{chrDedupAfFile}.gz -c CHROM,FROM,REF,ALT,INFO/TCGA_EUR_DEDUP_AF -d key=INFO,ID=TCGA_EUR_DEDUP_AF,Number=A,Type=Float,Description=\"TCGA EUR Dedupped Allele Frequency, for each ALT allele, in the same order as listed\" | bgzip > #{vcfChrDedupAfFile} && tabix -p vcf #{vcfChrDedupAfFile}"
   end
 end
 
@@ -2595,6 +2660,9 @@ if __FILE__ == $0
 
   #extract_eur_pancan_chr_vcfs
   #extract_afs_from_eur_pancan_chr_vcfs
+
+  #remove_duplicate_patients_from_pancan_chr_vcfs
+  #extract_afs_from_dedup_pancan_chr_vcfs
 
 
   # For Nik
